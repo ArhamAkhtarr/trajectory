@@ -18,9 +18,9 @@ class ResumeState(TypedDict, total=False):
     resume_text: str
     file_reference_id: str
     user_id: str
+    highest_education: str
     skills: list[str]
     tools: list[str]
-    years_of_experience: float
     suggested_roles: list[str]
     seniority_level: str
     summary_pitch: str
@@ -54,34 +54,39 @@ async def extract_skills(state: ResumeState) -> dict:
 
     if not api_key:
         logger.warning(
-            "ANTHROPIC_API_KEY missing. Using fallback skills extraction."
+            "ANTHROPIC_API_KEY missing. Using fallback skills & education extraction."
         )
         return {
+            "highest_education": "Bachelor of Science in Computer Science",
             "skills": ["Software Engineering", "System Design", "API Development"],
             "tools": ["Python", "FastAPI", "Docker", "Git"],
-            "years_of_experience": 3.5,
             "seniority_level": "Mid-Senior Engineer",
-            "summary_pitch": "Results-oriented software developer with hands-on experience in building scalable backend APIs and async microservices.",
+            "summary_pitch": "Results-oriented software engineer with a strong Computer Science degree background and hands-on multi-stack API engineering experience.",
             "key_strengths": [
-                "Strong backend API development skills",
-                "Proven problem-solving in async environments",
-                "Familiarity with modern deployment stacks"
+                "Solid Computer Science academic foundation",
+                "Proven multi-skill stack integration (Python, FastAPI, Docker)",
+                "Familiarity with distributed architecture principles"
             ],
             "top_recommendations": [
-                "Add quantified metrics (e.g. % performance increase) to work achievements",
-                "Highlight system architecture and caching experience explicitly",
-                "Include cloud deployment & CI/CD workflow details"
+                "Add quantified metrics (e.g. % throughput gain) to engineering bullets",
+                "Highlight multi-technology project integrations explicitly",
+                "Include cloud architecture & automated deployment details"
             ]
         }
 
     prompt = f"""You are a principal executive talent auditor and AI resume reviewer. Thoroughly analyze the candidate's resume below.
+
+CRITICAL INSTRUCTION:
+1. Identify and extract the candidate's HIGHEST EDUCATION degree level (e.g., "Bachelor of Science in Computer Science", "Master of Science in Software Engineering", "Bachelor of Business Administration", "PhD in Data Science", or "Bachelor's Degree").
+2. Extract all core technical skills and tool combinations.
+
 Extract comprehensive structured insight matching this EXACT JSON schema:
 {{
+  "highest_education": "e.g. Bachelor of Science in Computer Science",
   "skills": ["list of core engineering skills"],
   "tools": ["list of frameworks, languages, databases, tools"],
-  "years_of_experience": 3.5,
-  "seniority_level": "e.g. Mid-Level Engineer / Senior Developer",
-  "summary_pitch": "Compelling 2-sentence executive summary of candidate strengths and technical focus.",
+  "seniority_level": "e.g. Software Engineer / Lead Developer",
+  "summary_pitch": "Compelling 2-sentence executive summary emphasizing academic degree + multi-skill stack capabilities.",
   "key_strengths": ["Top strength 1", "Top strength 2", "Top strength 3"],
   "top_recommendations": ["Actionable recommendation 1", "Actionable recommendation 2", "Actionable recommendation 3"]
 }}
@@ -103,20 +108,20 @@ Resume text:
         parsed = json.loads(json_str)
 
         return {
+            "highest_education": str(parsed.get("highest_education", "Bachelor's Degree")),
             "skills": parsed.get("skills", ["Software Engineering"]),
             "tools": parsed.get("tools", ["Python"]),
-            "years_of_experience": float(parsed.get("years_of_experience", 1.0)),
             "seniority_level": str(parsed.get("seniority_level", "Software Engineer")),
-            "summary_pitch": str(parsed.get("summary_pitch", "Experienced technical candidate.")),
+            "summary_pitch": str(parsed.get("summary_pitch", "Qualified technical candidate.")),
             "key_strengths": parsed.get("key_strengths", ["Solid technical foundation"]),
             "top_recommendations": parsed.get("top_recommendations", ["Add measurable metrics to resume bullets"]),
         }
     except Exception as e:
         logger.error(f"Error in extract_skills node: {e}")
         return {
+            "highest_education": "Bachelor's Degree in Computer Science",
             "skills": ["Software Development"],
             "tools": ["Python"],
-            "years_of_experience": 2.0,
             "seniority_level": "Software Engineer",
             "summary_pitch": "Capable developer with technical experience across backend systems.",
             "key_strengths": ["Backend engineering skills"],
@@ -125,9 +130,9 @@ Resume text:
 
 
 async def infer_role(state: ResumeState) -> dict:
+    highest_edu = state.get("highest_education", "Bachelor's Degree")
     skills = state.get("skills", [])
     tools = state.get("tools", [])
-    yoe = state.get("years_of_experience", 0.0)
     resume_text = state.get("resume_text", "")
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
@@ -135,21 +140,27 @@ async def infer_role(state: ResumeState) -> dict:
         logger.warning("ANTHROPIC_API_KEY missing. Using fallback role inference.")
         return {
             "suggested_roles": [
-                "Senior Backend Engineer",
+                "Software Engineer",
+                "Backend Infrastructure Lead",
                 "Full Stack Developer",
-                "API Infrastructure Lead",
             ]
         }
 
-    prompt = f"""You are a career advisor AI. Based on the candidate's profile:
-Skills: {", ".join(skills)}
-Tools: {", ".join(tools)}
-Years of Experience: {yoe}
+    prompt = f"""You are a senior career advisor and executive recruiter.
+
+Candidate Profile:
+- Highest Education: {highest_edu}
+- Multi-Skill Stack: {", ".join(skills)}
+- Tools & Technologies: {", ".join(tools)}
 
 Resume snippet:
 {resume_text[:1000]}
 
-Suggest 3 to 5 highly relevant, high-growth job titles this candidate is qualified for.
+CRITICAL REQUIREMENT:
+Suggest 3 to 5 highly relevant job titles this candidate is qualified for.
+Your role suggestions MUST be PRIMARILY grounded in their HIGHEST EDUCATION degree level (e.g. Bachelor's, Master's) combined with their multi-skill technical stack ({", ".join(skills[:4])}).
+Do NOT suggest roles based purely on a single keyword. Synthesize their degree foundation with their multi-technology combination.
+
 Return ONLY a valid JSON object matching this schema:
 {{
   "suggested_roles": ["Job Title 1", "Job Title 2", "Job Title 3"]
@@ -174,13 +185,14 @@ Return ONLY a valid JSON object matching this schema:
         return {
             "suggested_roles": [
                 "Software Engineer",
-                "Backend Specialist",
-                "Full Stack Developer",
+                "Backend Developer",
+                "Full Stack Engineer",
             ]
         }
 
 
 async def embed_profile(state: ResumeState) -> dict:
+    highest_edu = state.get("highest_education", "Bachelor's Degree")
     skills = state.get("skills", [])
     tools = state.get("tools", [])
     roles = state.get("suggested_roles", [])
@@ -188,8 +200,9 @@ async def embed_profile(state: ResumeState) -> dict:
     user_id = state.get("user_id", "default_user")
 
     profile_text = (
-        f"Skills: {', '.join(skills)}. Tools: {', '.join(tools)}. "
-        f"Qualified Roles: {', '.join(roles)}."
+        f"Education: {highest_edu}. "
+        f"Multi-Skill Stack: {', '.join(skills)}. Tools: {', '.join(tools)}. "
+        f"Qualified Market Roles: {', '.join(roles)}."
     )
 
     embedding_vec = _generate_embedding(profile_text)
@@ -212,9 +225,9 @@ async def embed_profile(state: ResumeState) -> dict:
         payload = {
             "file_reference_id": file_ref_id,
             "user_id": user_id,
+            "highest_education": highest_edu,
             "skills": skills,
             "tools": tools,
-            "years_of_experience": state.get("years_of_experience", 0.0),
             "suggested_roles": roles,
             "embedding": embedding_vec,
         }
@@ -268,9 +281,9 @@ async def analyze_resume_agent(
 
     return {
         "file_reference_id": final_state.get("file_reference_id"),
+        "highest_education": final_state.get("highest_education", "Bachelor's Degree"),
         "skills": final_state.get("skills", []),
         "tools": final_state.get("tools", []),
-        "years_of_experience": final_state.get("years_of_experience", 0.0),
         "suggested_roles": final_state.get("suggested_roles", []),
         "seniority_level": final_state.get("seniority_level", "Software Engineer"),
         "summary_pitch": final_state.get("summary_pitch", ""),

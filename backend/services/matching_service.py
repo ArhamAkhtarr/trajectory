@@ -55,17 +55,17 @@ async def rerank_jobs_with_claude(
             }
         )
 
+    highest_edu = user_profile.get("highest_education", "Bachelor's Degree")
     skills_str = ", ".join(user_profile.get("skills", []))
     tools_str = ", ".join(user_profile.get("tools", []))
     roles_str = ", ".join(user_profile.get("suggested_roles", []))
-    yoe = user_profile.get("years_of_experience", 0.0)
 
-    prompt = f"""You are an AI career matchmaking engine. Re-rank the following candidate jobs based on genuine candidate fit, seniority alignment, and skill compatibility, rather than superficial keyword overlap.
+    prompt = f"""You are an AI career matchmaking engine. Re-rank the following candidate jobs based on genuine candidate fit, education degree level alignment ({highest_edu}), and multi-skill compatibility, rather than superficial single-keyword overlap.
 
 Candidate Profile:
-- Skills: {skills_str}
-- Tools: {tools_str}
-- Years of Experience: {yoe}
+- Highest Education: {highest_edu}
+- Multi-Skill Stack: {skills_str}
+- Tools & Tech: {tools_str}
 - Target Roles: {roles_str}
 
 Candidate Jobs (Indices 0 to {len(top_jobs) - 1}):
@@ -76,7 +76,7 @@ Return ONLY a valid JSON array of objects re-ranked from best match to worst mat
   {{
     "id": 0,
     "fit_score": 95,
-    "reasoning": "Brief 1-sentence explanation of why this job fits candidate's seniority and tech stack."
+    "reasoning": "Brief 1-sentence explanation of why this job aligns with candidate's education and multi-skill stack."
   }},
   ...
 ]
@@ -98,32 +98,23 @@ Return ONLY a valid JSON array of objects re-ranked from best match to worst mat
 
         if isinstance(reranked_data, list):
             for item in reranked_data:
-                idx = item.get("id")
-                if (
-                    isinstance(idx, int)
-                    and 0 <= idx < len(top_jobs)
-                    and idx not in seen_indices
-                ):
-                    seen_indices.add(idx)
-                    job_copy = dict(top_jobs[idx])
-                    job_copy["fit_score"] = int(item.get("fit_score", 80))
-                    job_copy["reasoning"] = str(
-                        item.get(
-                            "reasoning",
-                            "Strong alignment with candidate profile and seniority level.",
-                        )
-                    )
-                    reranked_jobs.append(job_copy)
+                if isinstance(item, dict):
+                    idx = item.get("id")
+                    if isinstance(idx, int) and 0 <= idx < len(top_jobs) and idx not in seen_indices:
+                        seen_indices.add(idx)
+                        job = dict(top_jobs[idx])
+                        job["fit_score"] = int(item.get("fit_score", 80))
+                        job["reasoning"] = str(item.get("reasoning", "Strong match for candidate profile."))
+                        reranked_jobs.append(job)
 
+        # Include any remaining jobs that were not returned by Claude
         for idx, job in enumerate(top_jobs):
             if idx not in seen_indices:
-                job_copy = dict(job)
-                sim = job_copy.get("similarity_score", 0.5)
-                job_copy["fit_score"] = int(round(sim * 100))
-                job_copy["reasoning"] = (
-                    "Matched based on vector similarity and background."
-                )
-                reranked_jobs.append(job_copy)
+                j = dict(job)
+                sim = j.get("similarity_score", 0.5)
+                j["fit_score"] = int(round(sim * 100))
+                j["reasoning"] = "Matched based on profile vector similarity."
+                reranked_jobs.append(j)
 
         return reranked_jobs
 
@@ -139,35 +130,23 @@ Return ONLY a valid JSON array of objects re-ranked from best match to worst mat
 def compute_matched_jobs(
     resume_profile: dict, all_jobs: list[dict]
 ) -> list[dict]:
+    highest_edu = resume_profile.get("highest_education", "Bachelor's Degree")
     skills = resume_profile.get("skills", [])
     tools = resume_profile.get("tools", [])
     roles = resume_profile.get("suggested_roles", [])
-    skills_text = (
-        f"Skills: {', '.join(skills)}. Tools: {', '.join(tools)}. "
-        f"Roles: {', '.join(roles)}."
-    )
 
-    resume_embedding = resume_profile.get("embedding")
-    if not resume_embedding:
-        resume_embedding = _generate_embedding(skills_text)
+    profile_text = f"Education: {highest_edu}. Skills: {', '.join(skills)}. Tools: {', '.join(tools)}. Qualified Roles: {', '.join(roles)}."
+    resume_vector = _generate_embedding(profile_text)
 
-    scored_jobs: list[dict] = []
-
+    scored_jobs = []
     for job in all_jobs:
-        title = job.get("title", "")
-        location = job.get("location", "")
-        job_text = f"{title} {location}"
-        job_embedding = _generate_embedding(job_text)
-
-        sim = cosine_similarity(resume_embedding, job_embedding)
+        job_text = f"{job.get('title', '')} {job.get('company', '')} {job.get('location', '')}"
+        job_vector = _generate_embedding(job_text)
+        sim = cosine_similarity(resume_vector, job_vector)
 
         job_copy = dict(job)
         job_copy["similarity_score"] = round(sim, 4)
         scored_jobs.append(job_copy)
 
-    # Sort by vector cosine similarity descending
     scored_jobs.sort(key=lambda j: j["similarity_score"], reverse=True)
-
-    # Take top 20
-    top_20 = scored_jobs[:20]
-    return top_20
+    return scored_jobs[:20]

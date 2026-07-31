@@ -286,8 +286,8 @@ async def generate_ideas(request: IdeaGenerateRequest):
     ref_id = request.file_reference_id
     skills = request.skills or []
     target_roles = request.target_roles or []
+    highest_edu = "Bachelor's Degree"
 
-    # If skills or target_roles omitted, look up from analysis cache or trigger analysis
     if (not skills or not target_roles) and ref_id:
         cached_analysis = ANALYSIS_CACHE.get(ref_id)
         if not cached_analysis:
@@ -305,6 +305,7 @@ async def generate_ideas(request: IdeaGenerateRequest):
                 skills = cached_analysis.get("skills", [])
             if not target_roles:
                 target_roles = cached_analysis.get("suggested_roles", [])
+            highest_edu = cached_analysis.get("highest_education", "Bachelor's Degree")
 
     if not skills and not target_roles and not ref_id:
         raise HTTPException(
@@ -313,7 +314,10 @@ async def generate_ideas(request: IdeaGenerateRequest):
         )
 
     result = await generate_ideas_agent(
-        skills=skills, target_roles=target_roles, file_reference_id=ref_id
+        skills=skills,
+        target_roles=target_roles,
+        file_reference_id=ref_id,
+        highest_education=highest_edu,
     )
 
     return result

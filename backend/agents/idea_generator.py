@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class IdeaGeneratorState(TypedDict, total=False):
+    highest_education: str
     skills: list[str]
     target_roles: list[str]
     file_reference_id: str | None
@@ -29,6 +30,7 @@ def _clean_json_str(text: str) -> str:
 
 
 async def identify_skill_gaps(state: IdeaGeneratorState) -> dict:
+    highest_edu = state.get("highest_education", "Bachelor's Degree")
     skills = state.get("skills", [])
     target_roles = state.get("target_roles", [])
     api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -48,10 +50,11 @@ async def identify_skill_gaps(state: IdeaGeneratorState) -> dict:
 
     prompt = f"""You are an expert tech career strategist. Identify 3 to 6 key technical skill gaps for a candidate.
 
-Current Skills: {", ".join(skills) if skills else "Software Development"}
-Target Roles: {", ".join(target_roles) if target_roles else "Software Engineer"}
+Candidate Education: {highest_edu}
+Current Skills Combination: {", ".join(skills) if skills else "Software Development"}
+Target Market Roles: {", ".join(target_roles) if target_roles else "Software Engineer"}
 
-Identify high-demand, 2026 industry-standard skill gaps or missing competencies required to land and excel in these target roles.
+Identify high-demand, 2026 industry-standard skill gaps or missing competencies required to excel in these degree-aligned target roles.
 Return ONLY a valid JSON object matching this schema:
 {{
   "skill_gaps": ["Skill Gap 1", "Skill Gap 2", "Skill Gap 3"]
@@ -81,23 +84,23 @@ Return ONLY a valid JSON object matching this schema:
         }
 
 
-def _get_fallback_ideas(skills: list[str], target_roles: list[str]) -> list[dict]:
-    primary = skills[0] if skills else "Python"
-    field = target_roles[0] if target_roles else "Full Stack Software Engineer"
+def _get_fallback_ideas(skills: list[str], target_roles: list[str], highest_edu: str = "Bachelor's Degree") -> list[dict]:
+    primary_skills = ", ".join(skills[:3]) if skills else "Python, FastAPI, React"
+    field = target_roles[0] if target_roles else "Software Engineer"
 
     return [
         {
-            "title": f"High-Throughput {primary} API Gateway & Distributed Cache",
-            "description": f"Design and implement an asynchronous API Gateway using {primary} and Redis with token bucket rate limiting and real-time JWT verification.",
-            "suggested_stack": [primary, "FastAPI", "Redis", "Docker", "PostgreSQL"],
+            "title": f"High-Throughput Multi-Stack API Gateway & Distributed System",
+            "description": f"Design and implement a production-grade asynchronous API Gateway synthesizing {primary_skills} with Redis caching, token bucket rate-limiting, and PostgreSQL persistence.",
+            "suggested_stack": skills[:4] if len(skills) >= 2 else ["Python", "FastAPI", "Redis", "Docker", "PostgreSQL"],
             "difficulty": "Advanced",
             "estimated_hours": 25,
-            "market_relevance": f"In-demand for {field} positions to demonstrate understanding of microservice resiliency, caching, and throughput.",
+            "market_relevance": f"In-demand for {field} positions requiring a strong {highest_edu} foundation to demonstrate multi-skill architecture, caching, and microservices.",
             "architecture_pipeline": [
                 {
                     "phase": "Phase 1: Architecture & Data Ingestion",
                     "tasks": [
-                        f"Set up {primary} project with structured logging and OpenAPI spec.",
+                        "Set up project with multi-skill stack integration and OpenAPI spec.",
                         "Configure Redis connection pool with fallback mechanisms."
                     ]
                 },
@@ -124,7 +127,7 @@ def _get_fallback_ideas(skills: list[str], target_roles: list[str]) -> list[dict
                 }
             ],
             "key_features": [
-                "Async non-blocking request routing",
+                "Async non-blocking request routing combining multiple technologies",
                 "Redis sliding window rate-limiting",
                 "Sub-10ms cache lookup latency",
                 "Automated CI/CD test runner"
@@ -139,11 +142,11 @@ def _get_fallback_ideas(skills: list[str], target_roles: list[str]) -> list[dict
         },
         {
             "title": "Real-time Vector Search & Recommendation Microservice",
-            "description": "Build an end-to-end vector embedding service that ingests candidate profiles and performs semantic cosine similarity searches over multi-dimensional vectors.",
-            "suggested_stack": [primary, "pgvector", "Supabase", "Anthropic API", "Next.js"],
+            "description": "Build an end-to-end multi-dimensional vector search microservice combining embeddings, database persistence, and a modern frontend dashboard.",
+            "suggested_stack": ["Python", "FastAPI", "pgvector", "Supabase", "React"],
             "difficulty": "Intermediate",
             "estimated_hours": 20,
-            "market_relevance": "Directly aligns with modern AI engineering demands for RAG pipelines and semantic vector retrieval.",
+            "market_relevance": f"Directly aligns with modern AI engineering demands for candidates with a {highest_edu} degree.",
             "architecture_pipeline": [
                 {
                     "phase": "Phase 1: Vector Model & Schema",
@@ -162,14 +165,14 @@ def _get_fallback_ideas(skills: list[str], target_roles: list[str]) -> list[dict
                 {
                     "phase": "Phase 3: API & UI Integration",
                     "tasks": [
-                        "Expose REST/gRPC endpoint for top-K similarity search.",
+                        "Expose REST endpoint for top-K similarity search.",
                         "Build interactive UI component displaying candidate matches."
                     ]
                 }
             ],
             "key_features": [
                 "HNSW indexed vector similarity search",
-                "Automated LLM re-ranking pipeline",
+                "Multi-skill integration across backend and frontend",
                 "Sub-second semantic search retrieval"
             ],
             "repository_structure": [
@@ -182,6 +185,7 @@ def _get_fallback_ideas(skills: list[str], target_roles: list[str]) -> list[dict
 
 
 async def generate_project_ideas(state: IdeaGeneratorState) -> dict:
+    highest_edu = state.get("highest_education", "Bachelor's Degree")
     skills = state.get("skills", [])
     target_roles = state.get("target_roles", [])
     skill_gaps = state.get("skill_gaps", [])
@@ -189,29 +193,31 @@ async def generate_project_ideas(state: IdeaGeneratorState) -> dict:
 
     if not api_key:
         logger.warning("ANTHROPIC_API_KEY missing. Using fallback project ideas.")
-        return {"project_ideas": _get_fallback_ideas(skills, target_roles)}
+        return {"project_ideas": _get_fallback_ideas(skills, target_roles, highest_edu)}
 
-    prompt = f"""You are a world-class principal software architect and career mentor. Generate 4 to 6 highly relevant, in-demand, market-aligned portfolio project ideas for this candidate.
+    prompt = f"""You are a world-class principal software architect and career mentor. Generate 4 to 6 highly relevant, in-demand portfolio project ideas for this candidate.
 
 Candidate Profile:
-- Skills: {", ".join(skills) if skills else "Software Development"}
+- Highest Education: {highest_edu}
+- Multi-Skill Stack: {", ".join(skills) if skills else "Software Engineering"}
 - Target Roles: {", ".join(target_roles) if target_roles else "Full Stack Software Engineer"}
 - Identified Skill Gaps: {", ".join(skill_gaps)}
 
 CRITICAL REQUIREMENTS:
-1. Every project MUST directly reflect current 2026 tech industry demands for {", ".join(target_roles) if target_roles else "Software Engineers"}.
-2. Each project MUST include a comprehensive step-by-step implementation pipeline (4 phases), key features list, and repository structure.
+1. Every project MUST be tailored to the candidate's degree level ({highest_edu}) and MUST combine MULTIPLE skills from their stack ({", ".join(skills[:5]) if skills else "Python, FastAPI, React"}). Do NOT generate projects focused on just one single keyword.
+2. Every project MUST reflect 2026 industry demands for {", ".join(target_roles) if target_roles else "Software Engineers"}.
+3. Each project MUST include a comprehensive step-by-step implementation pipeline (4 phases), key features list, and repository structure.
 
 Return ONLY a valid JSON object matching this schema:
 {{
   "project_ideas": [
     {{
       "title": "Project Title",
-      "description": "Clear 2-sentence description of what to build and its commercial/engineering value.",
-      "suggested_stack": ["Tech1", "Tech2", "Tech3"],
+      "description": "Clear 2-sentence description combining multiple skills and showing commercial value.",
+      "suggested_stack": ["Tech1", "Tech2", "Tech3", "Tech4"],
       "difficulty": "Intermediate",
       "estimated_hours": 25,
-      "market_relevance": "Why this project is highly sought after by engineering hiring managers in 2026.",
+      "market_relevance": "Why this multi-skill project is highly sought after by hiring managers for degree holders.",
       "architecture_pipeline": [
         {{
           "phase": "Phase 1: Architecture & Ingestion",
@@ -260,11 +266,11 @@ Return ONLY a valid JSON object matching this schema:
                             "phase": str(p.get("phase", "Implementation Phase")),
                             "tasks": [str(t) for t in p.get("tasks", [])]
                         })
-                
+
                 if not pipeline:
                     pipeline = [
                         {"phase": "Phase 1: Setup & Architecture", "tasks": ["Initialize repository", "Define API schema"]},
-                        {"phase": "Phase 2: Core Engine", "tasks": ["Implement business logic", "Connect persistence layer"]},
+                        {"phase": "Phase 2: Core Engine", "tasks": ["Implement multi-skill logic", "Connect persistence layer"]},
                         {"phase": "Phase 3: Testing & CI/CD", "tasks": ["Write unit tests", "Configure Docker container"]}
                     ]
 
@@ -276,7 +282,7 @@ Return ONLY a valid JSON object matching this schema:
                     "estimated_hours": int(idea.get("estimated_hours", 20)),
                     "market_relevance": str(idea.get("market_relevance", "High market demand for target engineering roles.")),
                     "architecture_pipeline": pipeline,
-                    "key_features": [str(f) for f in idea.get("key_features", ["High performance", "Modular code"])],
+                    "key_features": [str(f) for f in idea.get("key_features", ["High performance", "Multi-stack integration"])],
                     "repository_structure": [str(r) for r in idea.get("repository_structure", ["src/main.py", "docker-compose.yml"])],
                 })
 
@@ -284,7 +290,7 @@ Return ONLY a valid JSON object matching this schema:
 
     except Exception as e:
         logger.error(f"Error in generate_project_ideas node: {e}")
-        return {"project_ideas": _get_fallback_ideas(skills, target_roles)}
+        return {"project_ideas": _get_fallback_ideas(skills, target_roles, highest_edu)}
 
 
 # Construct LangGraph workflow graph
@@ -304,8 +310,10 @@ async def generate_ideas_agent(
     skills: list[str],
     target_roles: list[str],
     file_reference_id: str | None = None,
+    highest_education: str = "Bachelor's Degree",
 ) -> dict:
     initial_state: IdeaGeneratorState = {
+        "highest_education": highest_education,
         "skills": skills,
         "target_roles": target_roles,
         "file_reference_id": file_reference_id,
@@ -315,6 +323,7 @@ async def generate_ideas_agent(
 
     return {
         "file_reference_id": file_reference_id,
+        "highest_education": highest_education,
         "skills": skills,
         "target_roles": target_roles,
         "skill_gaps": final_state.get("skill_gaps", []),

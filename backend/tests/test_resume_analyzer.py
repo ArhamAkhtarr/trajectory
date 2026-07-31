@@ -23,17 +23,17 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
         mock_msg = MagicMock()
         mock_msg.content = [
             MagicMock(
-                text='{"skills": ["Python", "FastAPI"], "tools": ["Git", "Docker"], "years_of_experience": 4.5}'
+                text='{"highest_education": "Bachelor of Science in Computer Science", "skills": ["Python", "FastAPI"], "tools": ["Git", "Docker"]}'
             )
         ]
         mock_client.messages.create.return_value = mock_msg
         mock_anthropic_cls.return_value = mock_client
 
         with patch("agents.resume_analyzer.os.getenv", return_value="dummy_key"):
-            res = asyncio.run(extract_skills({"resume_text": "Experienced Python Developer"}))
+            res = asyncio.run(extract_skills({"resume_text": "Experienced Python Developer with BS in Computer Science"}))
             self.assertEqual(res["skills"], ["Python", "FastAPI"])
             self.assertEqual(res["tools"], ["Git", "Docker"])
-            self.assertEqual(res["years_of_experience"], 4.5)
+            self.assertEqual(res["highest_education"], "Bachelor of Science in Computer Science")
 
     @patch("agents.resume_analyzer.anthropic.AsyncAnthropic")
     def test_infer_role_node(self, mock_anthropic_cls):
@@ -51,9 +51,9 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
             res = asyncio.run(
                 infer_role(
                     {
+                        "highest_education": "Master of Science in Software Engineering",
                         "skills": ["Python", "FastAPI"],
                         "tools": ["Git"],
-                        "years_of_experience": 4.0,
                     }
                 )
             )
@@ -62,12 +62,12 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
 
     def test_embed_profile_node(self):
         state = {
+            "highest_education": "Bachelor of Science in Computer Science",
             "skills": ["Python", "FastAPI"],
             "tools": ["Git", "Docker"],
             "suggested_roles": ["Backend Developer"],
             "file_reference_id": "test_ref_id",
             "user_id": "user_1",
-            "years_of_experience": 3.0,
         }
         res = asyncio.run(embed_profile(state))
         self.assertIn("embedding", res)
@@ -78,16 +78,16 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
     def test_resume_analyze_endpoint(self, mock_agent):
         mock_agent.return_value = {
             "file_reference_id": "ref-123",
+            "highest_education": "Bachelor of Science in Computer Science",
             "skills": ["Python", "FastAPI"],
             "tools": ["Git", "Docker"],
-            "years_of_experience": 5.0,
             "suggested_roles": ["Backend Engineer", "API Architect"],
             "stored_in_supabase": True,
         }
 
         payload = {
             "file_reference_id": "ref-123",
-            "resume_text": "Senior Python Backend Developer with 5 years experience",
+            "resume_text": "BS in Computer Science, Senior Python Backend Developer",
         }
         response = self.client.post("/resume/analyze", json=payload)
         self.assertEqual(response.status_code, 200)
@@ -98,7 +98,7 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
         self.assertEqual(len(json_resp["suggested_roles"]), 2)
 
     def test_resume_analyze_endpoint_not_found(self):
-        payload = {"file_reference_id": "non_existent_ref_999"}
+        payload = {"file_reference_id": "nonexistent_ref_id"}
         response = self.client.post("/resume/analyze", json=payload)
         self.assertEqual(response.status_code, 404)
 

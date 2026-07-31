@@ -13,6 +13,7 @@ import {
   Code,
   ExternalLink,
   FileText,
+  GraduationCap,
   Lightbulb,
   LogOut,
   MapPin,
@@ -63,9 +64,9 @@ interface ProjectIdea {
 
 interface ResumeAnalysis {
   file_reference_id: string;
+  highest_education?: string;
   skills: string[];
   tools: string[];
-  years_of_experience: number;
   suggested_roles: string[];
   seniority_level?: string;
   summary_pitch?: string;
@@ -184,9 +185,9 @@ export default function DashboardPage() {
 
       const combined: ResumeAnalysis = {
         file_reference_id: refId,
+        highest_education: analyzeResult.highest_education || "Bachelor's Degree",
         skills: analyzeResult.skills || [],
         tools: analyzeResult.tools || [],
-        years_of_experience: analyzeResult.years_of_experience || 0,
         suggested_roles: analyzeResult.suggested_roles || [],
         seniority_level: analyzeResult.seniority_level || "Software Engineer",
         summary_pitch: analyzeResult.summary_pitch || "",
@@ -755,14 +756,17 @@ export default function DashboardPage() {
 
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Target Market Roles
+                        Highest Education & Target Roles
                       </h4>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold mb-1">
-                        {resumeData.years_of_experience} Years Professional Experience
-                      </p>
+                      {resumeData.highest_education && (
+                        <div className="flex items-center space-x-1.5 text-xs text-indigo-600 dark:text-indigo-400 font-bold mb-2">
+                          <GraduationCap className="w-4 h-4 shrink-0" />
+                          <span>{resumeData.highest_education}</span>
+                        </div>
+                      )}
                       <div className="space-y-1">
                         {resumeData.suggested_roles.map((role, i) => (
-                          <div key={i} className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center space-x-1">
+                          <div key={i} className="text-xs text-slate-700 dark:text-slate-300 font-medium flex items-center space-x-1">
                             <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                             <span>{role}</span>
                           </div>
