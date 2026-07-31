@@ -3,6 +3,7 @@ import logging
 import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from adapters import (
@@ -36,6 +37,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trajectory API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Memory stores for uploads and analysis results
 RESUME_CACHE: dict[str, dict] = {}
