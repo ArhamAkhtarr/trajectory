@@ -3,6 +3,7 @@ import logging
 import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
+from pydantic import BaseModel
 
 from adapters import (
     build_deeplinks,
@@ -17,6 +18,7 @@ from adapters.utils import (
     is_remote_heuristic,
     sort_jobs_by_date,
 )
+from agents import analyze_resume_agent
 from services.resume_service import (
     extract_resume_text,
     upload_file_to_supabase,
@@ -27,6 +29,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trajectory API")
+
+# In-memory store for resume uploads
+RESUME_CACHE: dict[str, dict] = {}
+
+
+class ResumeAnalyzeRequest(BaseModel):
+    file_reference_id: str
+    resume_text: str | None = None
+    user_id: str = "default_user"
 
 
 async def _safe_search(adapter_fn, query: str, country: str | None, city: str | None, page: int) -> list[dict]:
@@ -114,14 +125,9 @@ async def upload_resume(
         raise HTTPException(status_code=422, detail="No file provided.")
 
     file_bytes = await file.read()
-
-    # Extract text from PDF or DOCX (raises 422 on corrupt/unreadable files)
     extracted_text = extract_resume_text(filename=file.filename, file_bytes=file_bytes)
-
-    # Generate reference ID
     file_reference_id = str(uuid.uuid4())
 
-    # Store original file in Supabase Storage under per-user folder
     storage_path = await upload_file_to_supabase(
         user_id=user_id,
         file_ref_id=file_reference_id,
@@ -130,9 +136,42 @@ async def upload_resume(
         content_type=file.content_type,
     )
 
+    # Save to memory cache for analysis lookup
+    RESUME_CACHE[file_reference_id] = {
+        "text": extracted_text,
+        "filename": file.filename,
+        "user_id": user_id,
+        "storage_path": storage_path,
+    }
+
     return {
         "file_reference_id": file_reference_id,
         "text": extracted_text,
         "filename": file.filename,
         "storage_path": storage_path,
     }
+
+
+@app.post("/resume/analyze")
+async def analyze_resume(request: ResumeAnalyzeRequest):
+    ref_id = request.file_reference_id
+    text = request.resume_text
+    user_id = request.user_id
+
+    # Lookup text from cache if not directly provided in payload
+    if not text:
+        cached = RESUME_CACHE.get(ref_id)
+        if cached:
+            text = cached.get("text")
+            user_id = cached.get("user_id", user_id)
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Resume with file_reference_id '{ref_id}' not found. Please upload first or provide resume_text.",
+            )
+
+    result = await analyze_resume_agent(
+        file_reference_id=ref_id, resume_text=text, user_id=user_id
+    )
+
+    return result
