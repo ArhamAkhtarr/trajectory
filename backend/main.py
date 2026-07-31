@@ -19,6 +19,10 @@ from adapters.utils import (
     sort_jobs_by_date,
 )
 from agents import analyze_resume_agent
+from services.matching_service import (
+    compute_matched_jobs,
+    rerank_jobs_with_claude,
+)
 from services.resume_service import (
     extract_resume_text,
     upload_file_to_supabase,
@@ -30,8 +34,9 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trajectory API")
 
-# In-memory store for resume uploads
+# Memory store for uploads and analysis results
 RESUME_CACHE: dict[str, dict] = {}
+ANALYSIS_CACHE: dict[str, dict] = {}
 
 
 class ResumeAnalyzeRequest(BaseModel):
@@ -136,7 +141,6 @@ async def upload_resume(
         content_type=file.content_type,
     )
 
-    # Save to memory cache for analysis lookup
     RESUME_CACHE[file_reference_id] = {
         "text": extracted_text,
         "filename": file.filename,
@@ -158,7 +162,6 @@ async def analyze_resume(request: ResumeAnalyzeRequest):
     text = request.resume_text
     user_id = request.user_id
 
-    # Lookup text from cache if not directly provided in payload
     if not text:
         cached = RESUME_CACHE.get(ref_id)
         if cached:
@@ -174,4 +177,61 @@ async def analyze_resume(request: ResumeAnalyzeRequest):
         file_reference_id=ref_id, resume_text=text, user_id=user_id
     )
 
+    # Store analysis result in cache for matching lookups
+    ANALYSIS_CACHE[ref_id] = result
+
     return result
+
+
+@app.get("/jobs/matched")
+async def get_matched_jobs(
+    file_reference_id: str = Query(..., description="File reference ID from resume upload/analyze step"),
+    query: str = Query(..., description="Job search query term"),
+    country: str | None = Query(default="us", description="Two-letter country code (e.g., us, gb)"),
+    city: str | None = Query(default=None, description="City name"),
+    mode: str | None = Query(
+        default=None, description="Work mode filter: remote, onsite, or hybrid"
+    ),
+    page: int = Query(default=1, ge=1, description="Page number"),
+):
+    # Lookup candidate resume profile from cache or trigger analysis
+    profile = ANALYSIS_CACHE.get(file_reference_id)
+    if not profile:
+        cached_resume = RESUME_CACHE.get(file_reference_id)
+        if cached_resume:
+            profile = await analyze_resume_agent(
+                file_reference_id=file_reference_id,
+                resume_text=cached_resume.get("text", ""),
+                user_id=cached_resume.get("user_id", "default_user"),
+            )
+            ANALYSIS_CACHE[file_reference_id] = profile
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No resume or analysis found for file_reference_id '{file_reference_id}'. Please upload a resume first.",
+            )
+
+    # Fetch aggregated job list across all 5 adapters
+    search_response = await search_jobs(
+        query=query, country=country, city=city, mode=mode, page=page
+    )
+    all_jobs = search_response.get("jobs", [])
+
+    if not all_jobs:
+        return {
+            "matched_jobs": [],
+            "total_matched": 0,
+            "file_reference_id": file_reference_id,
+        }
+
+    # Step 1: Compute cosine similarity between resume embedding and job embeddings & select top 20
+    top_20 = compute_matched_jobs(resume_profile=profile, all_jobs=all_jobs)
+
+    # Step 2: Re-rank the top 20 using a single Claude API call considering seniority fit & stack match
+    final_matched = await rerank_jobs_with_claude(user_profile=profile, top_jobs=top_20)
+
+    return {
+        "matched_jobs": final_matched,
+        "total_matched": len(final_matched),
+        "file_reference_id": file_reference_id,
+    }
