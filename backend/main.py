@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Query
 
 from adapters import (
+    build_deeplinks,
     search_adzuna,
     search_arbeitnow,
     search_jooble,
@@ -46,7 +47,7 @@ async def search_jobs(
     ),
     page: int = Query(default=1, ge=1, description="Page number"),
 ):
-    # Handle parameter values when called directly in Python vs via FastAPI request runner
+    # Parameter values extraction
     country_val = country if isinstance(country, str) else "us"
     city_val = city if isinstance(city, str) else None
     mode_val = mode if isinstance(mode, str) else None
@@ -97,4 +98,10 @@ async def search_jobs(
     # Sort by posted_date descending
     final_jobs = sort_jobs_by_date(deduped_jobs)
 
-    return final_jobs
+    # Build external deeplinks for LinkedIn, Upwork, Fiverr, Rozee.pk
+    external_links = build_deeplinks(query=query, country=country_val, city=city_val)
+
+    return {
+        "jobs": final_jobs,
+        "external_links": external_links,
+    }

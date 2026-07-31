@@ -102,31 +102,36 @@ class TestAdzunaAdapter(unittest.TestCase):
             "/jobs/search?query=engineer&country=us&mode=remote"
         )
         self.assertEqual(res_remote.status_code, 200)
-        self.assertEqual(len(res_remote.json()), 1)
-        self.assertEqual(res_remote.json()[0]["title"], "Backend Engineer")
+        jobs_remote = res_remote.json()["jobs"]
+        self.assertEqual(len(jobs_remote), 1)
+        self.assertEqual(jobs_remote[0]["title"], "Backend Engineer")
 
         # Test mode=onsite
         res_onsite = self.client.get(
             "/jobs/search?query=engineer&country=us&mode=onsite"
         )
         self.assertEqual(res_onsite.status_code, 200)
-        self.assertEqual(len(res_onsite.json()), 1)
-        self.assertEqual(res_onsite.json()[0]["title"], "Onsite Engineer")
+        jobs_onsite = res_onsite.json()["jobs"]
+        self.assertEqual(len(jobs_onsite), 1)
+        self.assertEqual(jobs_onsite[0]["title"], "Onsite Engineer")
 
         # Test mode=hybrid
         res_hybrid = self.client.get(
             "/jobs/search?query=engineer&country=us&mode=hybrid"
         )
         self.assertEqual(res_hybrid.status_code, 200)
-        self.assertEqual(len(res_hybrid.json()), 1)
+        jobs_hybrid = res_hybrid.json()["jobs"]
+        self.assertEqual(len(jobs_hybrid), 1)
         self.assertEqual(
-            res_hybrid.json()[0]["title"], "Hybrid Software Developer"
+            jobs_hybrid[0]["title"], "Hybrid Software Developer"
         )
 
         # Test no mode filter
         res_all = self.client.get("/jobs/search?query=engineer&country=us")
         self.assertEqual(res_all.status_code, 200)
-        self.assertEqual(len(res_all.json()), 3)
+        all_data = res_all.json()
+        self.assertEqual(len(all_data["jobs"]), 3)
+        self.assertEqual(len(all_data["external_links"]), 4)
 
 
 if __name__ == "__main__":

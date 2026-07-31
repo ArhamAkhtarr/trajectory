@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
 from adapters import (
+    build_deeplinks,
     search_adzuna,
     search_arbeitnow,
     search_jooble,
@@ -37,6 +38,20 @@ class TestJobAdapters(unittest.TestCase):
     def test_utils_normalize_date(self):
         self.assertEqual(normalize_date(1785000000), "2026-07-25T17:20:00Z")
         self.assertEqual(normalize_date("2026-07-30T10:00:00Z"), "2026-07-30T10:00:00Z")
+
+    def test_build_deeplinks(self):
+        links = build_deeplinks("Python Developer", country="us", city="San Francisco")
+        self.assertEqual(len(links), 4)
+
+        platforms = [link["platform"] for link in links]
+        self.assertIn("LinkedIn Jobs", platforms)
+        self.assertIn("Upwork", platforms)
+        self.assertIn("Fiverr", platforms)
+        self.assertIn("Rozee.pk", platforms)
+
+        for link in links:
+            self.assertEqual(link["note"], "Opens external search")
+            self.assertTrue(link["url"].startswith("http"))
 
     def test_deduplicate_jobs(self):
         jobs = [
@@ -201,15 +216,23 @@ class TestJobAdapters(unittest.TestCase):
         res = self.client.get("/jobs/search?query=engineer&country=us")
         self.assertEqual(res.status_code, 200)
         data = res.json()
-        self.assertEqual(len(data), 2)
-        self.assertEqual(data[0]["title"], "Frontend Lead")
-        self.assertEqual(data[1]["title"], "Senior Python Engineer")
+        self.assertIn("jobs", data)
+        self.assertIn("external_links", data)
+
+        jobs = data["jobs"]
+        links = data["external_links"]
+
+        self.assertEqual(len(jobs), 2)
+        self.assertEqual(jobs[0]["title"], "Frontend Lead")
+        self.assertEqual(jobs[1]["title"], "Senior Python Engineer")
+
+        self.assertEqual(len(links), 4)
 
         res_remote = self.client.get("/jobs/search?query=engineer&country=us&mode=remote")
         self.assertEqual(res_remote.status_code, 200)
-        remote_data = res_remote.json()
-        self.assertEqual(len(remote_data), 1)
-        self.assertEqual(remote_data[0]["title"], "Senior Python Engineer")
+        remote_jobs = res_remote.json()["jobs"]
+        self.assertEqual(len(remote_jobs), 1)
+        self.assertEqual(remote_jobs[0]["title"], "Senior Python Engineer")
 
 
 if __name__ == "__main__":
