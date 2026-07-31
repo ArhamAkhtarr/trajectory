@@ -200,27 +200,36 @@ export default function SearchPage() {
               </div>
 
               {/* Filters Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {/* Country Dropdown */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-1">
-                    <Globe className="w-3.5 h-3.5" />
-                    <span>Country</span>
-                  </label>
-                  <Select value={country} onValueChange={(val) => setCountry(val || "us")}>
-                    <SelectTrigger className="h-11 rounded-xl border-slate-200 dark:border-slate-800">
-                      <SelectValue placeholder="Select Country" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {COUNTRIES.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          <span className="mr-2">{c.flag}</span>
-                          {c.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div
+                className={`grid grid-cols-1 ${
+                  isFreelance ? "sm:grid-cols-2" : "sm:grid-cols-3"
+                } gap-4`}
+              >
+                {/* Country Dropdown (Hidden in Freelance / Gig Mode) */}
+                {!isFreelance && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center space-x-1">
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Country</span>
+                    </label>
+                    <Select
+                      value={country}
+                      onValueChange={(val) => setCountry(val || "us")}
+                    >
+                      <SelectTrigger className="h-11 rounded-xl border-slate-200 dark:border-slate-800">
+                        <SelectValue placeholder="Select Country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {COUNTRIES.map((c) => (
+                          <SelectItem key={c.code} value={c.code}>
+                            <span className="mr-2">{c.flag}</span>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {/* City Input */}
                 <div className="space-y-1.5">

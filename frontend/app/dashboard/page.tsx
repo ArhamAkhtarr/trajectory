@@ -44,12 +44,21 @@ interface MatchedJob {
   reasoning?: string;
 }
 
+interface ArchitecturePhase {
+  phase: string;
+  tasks: string[];
+}
+
 interface ProjectIdea {
   title: string;
   description: string;
   suggested_stack: string[];
   difficulty: string;
   estimated_hours: number;
+  market_relevance?: string;
+  architecture_pipeline?: ArchitecturePhase[];
+  key_features?: string[];
+  repository_structure?: string[];
 }
 
 interface ResumeAnalysis {
@@ -58,7 +67,10 @@ interface ResumeAnalysis {
   tools: string[];
   years_of_experience: number;
   suggested_roles: string[];
-  text?: string;
+  seniority_level?: string;
+  summary_pitch?: string;
+  key_strengths?: string[];
+  top_recommendations?: string[];
   filename?: string;
 }
 
@@ -70,6 +82,9 @@ export default function DashboardPage() {
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Selected Project Pipeline Modal State
+  const [selectedProject, setSelectedProject] = useState<ProjectIdea | null>(null);
 
   // Resume & Analysis State
   const [resumeData, setResumeData] = useState<ResumeAnalysis | null>(null);
@@ -173,7 +188,10 @@ export default function DashboardPage() {
         tools: analyzeResult.tools || [],
         years_of_experience: analyzeResult.years_of_experience || 0,
         suggested_roles: analyzeResult.suggested_roles || [],
-        text: uploadResult.text,
+        seniority_level: analyzeResult.seniority_level || "Software Engineer",
+        summary_pitch: analyzeResult.summary_pitch || "",
+        key_strengths: analyzeResult.key_strengths || [],
+        top_recommendations: analyzeResult.top_recommendations || [],
         filename: uploadResult.filename,
       };
 
@@ -554,7 +572,7 @@ export default function DashboardPage() {
                   {projectIdeas.map((idea, idx) => (
                     <Card
                       key={idx}
-                      className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 rounded-2xl p-6 flex flex-col justify-between"
+                      className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 rounded-2xl p-6 flex flex-col justify-between hover:border-indigo-500/50 transition-all shadow-sm"
                     >
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-2">
@@ -568,7 +586,7 @@ export default function DashboardPage() {
                         <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
                           {idea.description}
                         </p>
-                        <div className="flex flex-wrap gap-1.5 pt-2">
+                        <div className="flex flex-wrap gap-1.5 pt-1">
                           {idea.suggested_stack.map((tech, i) => (
                             <Badge
                               key={i}
@@ -586,9 +604,14 @@ export default function DashboardPage() {
                           <Clock className="w-3.5 h-3.5 text-indigo-500" />
                           <span>Est. {idea.estimated_hours} hours</span>
                         </span>
-                        <span className="text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer">
+                        <Button
+                          onClick={() => setSelectedProject(idea)}
+                          variant="ghost"
+                          size="sm"
+                          className="text-indigo-600 dark:text-indigo-400 font-semibold hover:bg-indigo-50 dark:hover:bg-indigo-950/50 text-xs h-8 px-2"
+                        >
                           Start Project &rarr;
-                        </span>
+                        </Button>
                       </div>
                     </Card>
                   ))}
@@ -645,18 +668,25 @@ export default function DashboardPage() {
               </Card>
             ) : (
               <div className="space-y-6">
-                {/* CV Overview Card */}
-                <Card className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 rounded-2xl p-6">
+                {/* CV Executive Overview Card */}
+                <Card className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 rounded-2xl p-6 shadow-sm">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                        <CheckCircle2 className="w-6 h-6" />
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 flex items-center justify-center font-bold text-lg">
+                        <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
-                          {resumeData.filename || "Uploaded Resume"}
-                        </h3>
-                        <p className="text-xs text-slate-500 font-mono">
+                        <div className="flex items-center space-x-2">
+                          <h3 className="font-bold text-lg text-slate-900 dark:text-slate-100">
+                            {resumeData.filename || "Uploaded Resume"}
+                          </h3>
+                          {resumeData.seniority_level && (
+                            <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20 text-xs font-semibold">
+                              {resumeData.seniority_level}
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 font-mono pt-0.5">
                           ID: {resumeData.file_reference_id}
                         </p>
                       </div>
@@ -681,6 +711,19 @@ export default function DashboardPage() {
                       </Button>
                     </div>
                   </div>
+
+                  {/* Executive Pitch Card */}
+                  {resumeData.summary_pitch && (
+                    <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 mb-6">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1 flex items-center space-x-1">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                        <span>Executive Summary Pitch</span>
+                      </h4>
+                      <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                        {resumeData.summary_pitch}
+                      </p>
+                    </div>
+                  )}
 
                   {/* Skills Grid */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -712,15 +755,16 @@ export default function DashboardPage() {
 
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                        Experience & Roles
+                        Target Market Roles
                       </h4>
-                      <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                      <p className="text-xs text-slate-700 dark:text-slate-300 font-semibold mb-1">
                         {resumeData.years_of_experience} Years Professional Experience
                       </p>
-                      <div className="pt-1 space-y-1">
+                      <div className="space-y-1">
                         {resumeData.suggested_roles.map((role, i) => (
-                          <div key={i} className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                            &bull; {role}
+                          <div key={i} className="text-xs text-indigo-600 dark:text-indigo-400 font-medium flex items-center space-x-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                            <span>{role}</span>
                           </div>
                         ))}
                       </div>
@@ -728,22 +772,140 @@ export default function DashboardPage() {
                   </div>
                 </Card>
 
-                {/* Raw Extracted Text View */}
-                {resumeData.text && (
-                  <Card className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/80 rounded-2xl p-6">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center space-x-1.5">
-                      <BookOpen className="w-4 h-4" />
-                      <span>Extracted Document Text</span>
-                    </h4>
-                    <pre className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800 text-xs font-mono text-slate-700 dark:text-slate-300 whitespace-pre-wrap max-h-80 overflow-y-auto">
-                      {resumeData.text}
-                    </pre>
-                  </Card>
+                {/* Key Strengths & Recommendations Card */}
+                {((resumeData.key_strengths && resumeData.key_strengths.length > 0) ||
+                  (resumeData.top_recommendations && resumeData.top_recommendations.length > 0)) && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {/* Strengths */}
+                    <Card className="border border-emerald-500/30 bg-emerald-500/5 rounded-2xl p-6">
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-3 flex items-center space-x-1.5">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Core Profile Strengths</span>
+                      </h4>
+                      <ul className="space-y-2">
+                        {resumeData.key_strengths?.map((str, i) => (
+                          <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex items-start space-x-2">
+                            <span className="text-emerald-500 font-bold">•</span>
+                            <span>{str}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </Card>
+
+                    {/* Recommendations */}
+                    <Card className="border border-indigo-500/30 bg-indigo-500/5 rounded-2xl p-6">
+                      <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 mb-3 flex items-center space-x-1.5">
+                        <Sparkles className="w-4 h-4" />
+                        <span>Resume Enhancement Insights</span>
+                      </h4>
+                      <ul className="space-y-2">
+                        {resumeData.top_recommendations?.map((rec, i) => (
+                          <li key={i} className="text-xs text-slate-700 dark:text-slate-300 flex items-start space-x-2">
+                            <span className="text-indigo-500 font-bold">&rarr;</span>
+                            <span>{rec}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </Card>
+                  </div>
                 )}
               </div>
             )}
           </TabsContent>
         </Tabs>
+
+        {/* Start Project Architecture Pipeline Modal */}
+        {selectedProject && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+            <Card className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 max-h-[90vh] overflow-y-auto space-y-6 animate-in fade-in zoom-in-95">
+              <div className="flex items-start justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="secondary" className="text-[10px] font-bold">
+                      {selectedProject.difficulty}
+                    </Badge>
+                    <span className="text-xs text-slate-400 font-mono">
+                      Est. {selectedProject.estimated_hours} Hours
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mt-1">
+                    {selectedProject.title}
+                  </h2>
+                </div>
+                <Button
+                  onClick={() => setSelectedProject(null)}
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-full w-8 h-8 p-0 text-slate-400 hover:text-slate-600"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              {/* Market Relevance */}
+              {selectedProject.market_relevance && (
+                <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed font-medium">
+                  <span className="font-bold block mb-1">🔥 Why This Project is High Demand in 2026:</span>
+                  {selectedProject.market_relevance}
+                </div>
+              )}
+
+              {/* Architecture Pipeline Phases */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
+                  <Code className="w-4 h-4 text-indigo-600" />
+                  <span>Architecture & Implementation Pipeline</span>
+                </h3>
+
+                <div className="space-y-3">
+                  {selectedProject.architecture_pipeline?.map((phaseObj, i) => (
+                    <div
+                      key={i}
+                      className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2"
+                    >
+                      <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide">
+                        {phaseObj.phase}
+                      </h4>
+                      <ul className="space-y-1.5">
+                        {phaseObj.tasks.map((task, j) => (
+                          <li key={j} className="text-xs text-slate-700 dark:text-slate-300 flex items-center space-x-2">
+                            <span className="w-3.5 h-3.5 rounded border border-slate-300 dark:border-slate-600 inline-block shrink-0" />
+                            <span>{task}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recommended Repo Structure */}
+              {selectedProject.repository_structure && selectedProject.repository_structure.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Recommended Project Folder Structure
+                  </h3>
+                  <div className="p-4 rounded-xl bg-slate-950 text-slate-200 font-mono text-xs space-y-1">
+                    {selectedProject.repository_structure.map((item, idx) => (
+                      <div key={idx} className="text-slate-300">
+                        📄 {item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <Button
+                  onClick={() => setSelectedProject(null)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs rounded-xl px-6"
+                >
+                  Got It! Start Coding
+                </Button>
+              </div>
+            </Card>
+          </div>
+        )}
       </main>
     </div>
   );

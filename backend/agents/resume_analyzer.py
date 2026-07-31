@@ -22,6 +22,10 @@ class ResumeState(TypedDict, total=False):
     tools: list[str]
     years_of_experience: float
     suggested_roles: list[str]
+    seniority_level: str
+    summary_pitch: str
+    key_strengths: list[str]
+    top_recommendations: list[str]
     embedding: list[float]
     stored_in_supabase: bool
     error: str | None
@@ -35,7 +39,6 @@ def _clean_json_str(text: str) -> str:
 
 
 def _generate_embedding(text: str) -> list[float]:
-    # Produce a 384-dimensional floating point vector
     text_bytes = text.encode("utf-8")
     vec = []
     base_sum = sum(text_bytes)
@@ -54,17 +57,33 @@ async def extract_skills(state: ResumeState) -> dict:
             "ANTHROPIC_API_KEY missing. Using fallback skills extraction."
         )
         return {
-            "skills": ["Software Development", "Problem Solving"],
-            "tools": ["Git", "Python"],
-            "years_of_experience": 2.0,
+            "skills": ["Software Engineering", "System Design", "API Development"],
+            "tools": ["Python", "FastAPI", "Docker", "Git"],
+            "years_of_experience": 3.5,
+            "seniority_level": "Mid-Senior Engineer",
+            "summary_pitch": "Results-oriented software developer with hands-on experience in building scalable backend APIs and async microservices.",
+            "key_strengths": [
+                "Strong backend API development skills",
+                "Proven problem-solving in async environments",
+                "Familiarity with modern deployment stacks"
+            ],
+            "top_recommendations": [
+                "Add quantified metrics (e.g. % performance increase) to work achievements",
+                "Highlight system architecture and caching experience explicitly",
+                "Include cloud deployment & CI/CD workflow details"
+            ]
         }
 
-    prompt = f"""You are an expert HR AI resume parser. Extract structured information from the resume below.
-Return ONLY valid JSON matching this schema:
+    prompt = f"""You are a principal executive talent auditor and AI resume reviewer. Thoroughly analyze the candidate's resume below.
+Extract comprehensive structured insight matching this EXACT JSON schema:
 {{
-  "skills": ["list of technical and soft skills"],
-  "tools": ["list of tools, software, platforms, frameworks"],
-  "years_of_experience": 3.5
+  "skills": ["list of core engineering skills"],
+  "tools": ["list of frameworks, languages, databases, tools"],
+  "years_of_experience": 3.5,
+  "seniority_level": "e.g. Mid-Level Engineer / Senior Developer",
+  "summary_pitch": "Compelling 2-sentence executive summary of candidate strengths and technical focus.",
+  "key_strengths": ["Top strength 1", "Top strength 2", "Top strength 3"],
+  "top_recommendations": ["Actionable recommendation 1", "Actionable recommendation 2", "Actionable recommendation 3"]
 }}
 
 Resume text:
@@ -75,7 +94,7 @@ Resume text:
         client = anthropic.AsyncAnthropic(api_key=api_key)
         message = await client.messages.create(
             model="claude-3-5-sonnet-20241022",
-            max_tokens=1000,
+            max_tokens=1500,
             messages=[{"role": "user", "content": prompt}],
         )
 
@@ -83,21 +102,25 @@ Resume text:
         json_str = _clean_json_str(content)
         parsed = json.loads(json_str)
 
-        skills = parsed.get("skills", [])
-        tools = parsed.get("tools", [])
-        yoe = float(parsed.get("years_of_experience", 0.0))
-
         return {
-            "skills": skills,
-            "tools": tools,
-            "years_of_experience": yoe,
+            "skills": parsed.get("skills", ["Software Engineering"]),
+            "tools": parsed.get("tools", ["Python"]),
+            "years_of_experience": float(parsed.get("years_of_experience", 1.0)),
+            "seniority_level": str(parsed.get("seniority_level", "Software Engineer")),
+            "summary_pitch": str(parsed.get("summary_pitch", "Experienced technical candidate.")),
+            "key_strengths": parsed.get("key_strengths", ["Solid technical foundation"]),
+            "top_recommendations": parsed.get("top_recommendations", ["Add measurable metrics to resume bullets"]),
         }
     except Exception as e:
         logger.error(f"Error in extract_skills node: {e}")
         return {
             "skills": ["Software Development"],
             "tools": ["Python"],
-            "years_of_experience": 1.0,
+            "years_of_experience": 2.0,
+            "seniority_level": "Software Engineer",
+            "summary_pitch": "Capable developer with technical experience across backend systems.",
+            "key_strengths": ["Backend engineering skills"],
+            "top_recommendations": ["Highlight system impact with metrics"],
         }
 
 
@@ -109,14 +132,12 @@ async def infer_role(state: ResumeState) -> dict:
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
     if not api_key:
-        logger.warning(
-            "ANTHROPIC_API_KEY missing. Using fallback role inference."
-        )
+        logger.warning("ANTHROPIC_API_KEY missing. Using fallback role inference.")
         return {
             "suggested_roles": [
-                "Software Engineer",
-                "Backend Developer",
-                "Full Stack Engineer",
+                "Senior Backend Engineer",
+                "Full Stack Developer",
+                "API Infrastructure Lead",
             ]
         }
 
@@ -128,7 +149,7 @@ Years of Experience: {yoe}
 Resume snippet:
 {resume_text[:1000]}
 
-Suggest 3 to 5 job titles this candidate is qualified for.
+Suggest 3 to 5 highly relevant, high-growth job titles this candidate is qualified for.
 Return ONLY a valid JSON object matching this schema:
 {{
   "suggested_roles": ["Job Title 1", "Job Title 2", "Job Title 3"]
@@ -153,8 +174,8 @@ Return ONLY a valid JSON object matching this schema:
         return {
             "suggested_roles": [
                 "Software Engineer",
-                "Developer",
-                "Technical Specialist",
+                "Backend Specialist",
+                "Full Stack Developer",
             ]
         }
 
@@ -173,7 +194,6 @@ async def embed_profile(state: ResumeState) -> dict:
 
     embedding_vec = _generate_embedding(profile_text)
 
-    # Store in Supabase pgvector table
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv(
         "SUPABASE_PUBLISHABLE_KEY"
@@ -252,5 +272,9 @@ async def analyze_resume_agent(
         "tools": final_state.get("tools", []),
         "years_of_experience": final_state.get("years_of_experience", 0.0),
         "suggested_roles": final_state.get("suggested_roles", []),
+        "seniority_level": final_state.get("seniority_level", "Software Engineer"),
+        "summary_pitch": final_state.get("summary_pitch", ""),
+        "key_strengths": final_state.get("key_strengths", []),
+        "top_recommendations": final_state.get("top_recommendations", []),
         "stored_in_supabase": final_state.get("stored_in_supabase", False),
     }

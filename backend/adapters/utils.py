@@ -2,15 +2,28 @@ from datetime import datetime, timezone
 import html
 import re
 
+COUNTRY_KEYWORDS: dict[str, list[str]] = {
+    "us": ["united states", "us", "usa", "america", "united states of america"],
+    "gb": ["united kingdom", "uk", "great britain", "england"],
+    "ca": ["canada", "ca"],
+    "de": ["germany", "deutschland", "de"],
+    "pk": ["pakistan", "pk"],
+    "in": ["india", "in"],
+    "au": ["australia", "au"],
+    "fr": ["france", "fr"],
+    "nl": ["netherlands", "nl"],
+    "sg": ["singapore", "sg"],
+    "ae": ["united arab emirates", "uae"],
+    "br": ["brazil", "brasil", "br"],
+    "jp": ["japan", "jp"],
+}
+
 
 def clean_text(text: str | None) -> str:
     if not text:
         return ""
-    # Unescape HTML entities (e.g. &nbsp;, &amp;, &lt;)
     text_unescaped = html.unescape(str(text))
-    # Strip HTML tags
     cleaned = re.sub(r"<[^>]+>", "", text_unescaped)
-    # Normalize whitespace
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
@@ -28,6 +41,52 @@ def is_remote_heuristic(
         "work from anywhere",
     ]
     return any(kw in combined for kw in keywords)
+
+
+def is_query_relevant(query: str, title: str, location: str = "") -> bool:
+    if not query or not query.strip():
+        return True
+
+    q_clean = query.strip().lower()
+    title_lower = title.lower()
+    location_lower = location.lower()
+
+    if q_clean in title_lower or q_clean in location_lower:
+        return True
+
+    # Common software/engineering role broad matchers
+    if q_clean in ("engineer", "developer", "software", "tech"):
+        broad_terms = ("engineer", "developer", "programmer", "lead", "architect", "manager", "specialist", "coder")
+        if any(term in title_lower for term in broad_terms):
+            return True
+
+    stopwords = {"a", "an", "the", "and", "or", "in", "for", "at", "with", "job", "jobs"}
+    query_tokens = [
+        t.lower() for t in re.findall(r"\w+", query)
+        if len(t) > 1 and t.lower() not in stopwords
+    ]
+
+    if not query_tokens:
+        return True
+
+    return any(token in title_lower or token in location_lower for token in query_tokens)
+
+
+def is_country_relevant(country_code: str, location: str, remote: bool = False) -> bool:
+    if not country_code or country_code.lower() in ("all", "global"):
+        return True
+
+    c_code = country_code.strip().lower()
+    keywords = COUNTRY_KEYWORDS.get(c_code, [c_code])
+    loc_lower = location.lower()
+
+    if not loc_lower or "anywhere" in loc_lower or "worldwide" in loc_lower or remote:
+        return True
+
+    if any(kw in loc_lower for kw in keywords):
+        return True
+
+    return True
 
 
 def normalize_date(date_val: str | int | float | None) -> str:
@@ -50,7 +109,6 @@ def normalize_date(date_val: str | int | float | None) -> str:
         except Exception:
             return ""
 
-    # Try ISO parsing
     try:
         s_clean = s_val.replace("Z", "+00:00")
         dt = datetime.fromisoformat(s_clean)
@@ -58,7 +116,6 @@ def normalize_date(date_val: str | int | float | None) -> str:
     except Exception:
         pass
 
-    # Try common date formats
     for fmt in (
         "%Y-%m-%d",
         "%Y-%m-%d %H:%M:%S",

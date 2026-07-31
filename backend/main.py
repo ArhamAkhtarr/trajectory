@@ -16,6 +16,8 @@ from adapters import (
 )
 from adapters.utils import (
     deduplicate_jobs,
+    is_country_relevant,
+    is_query_relevant,
     is_remote_heuristic,
     sort_jobs_by_date,
 )
@@ -107,6 +109,25 @@ async def search_jobs(
 
     deduped_jobs = deduplicate_jobs(merged_jobs)
 
+    # 1. Query relevance filter (discard completely unrelated titles)
+    if query and query.strip():
+        query_filtered = [
+            j for j in deduped_jobs
+            if is_query_relevant(query, j.get("title", ""), j.get("location", ""))
+        ]
+        if query_filtered:
+            deduped_jobs = query_filtered
+
+    # 2. Country relevance filter
+    if country_val and country_val.lower() not in ("all", "global"):
+        country_filtered = [
+            j for j in deduped_jobs
+            if is_country_relevant(country_val, j.get("location", ""), j.get("remote") is True)
+        ]
+        if country_filtered:
+            deduped_jobs = country_filtered
+
+    # 3. Work Mode filter (remote / onsite / hybrid)
     if mode_val and mode_val.strip().lower() != "all":
         m_lower = mode_val.strip().lower()
         filtered_jobs = []
@@ -123,21 +144,21 @@ async def search_jobs(
                 if not is_remote and "hybrid" not in f"{title} {location}".lower():
                     filtered_jobs.append(job)
             elif m_lower == "hybrid":
-                if "hybrid" in f"{title} {location}".lower() or "hybrid" in job.get("source", "").lower():
+                if "hybrid" in f"{title} {location}".lower():
                     filtered_jobs.append(job)
             else:
                 filtered_jobs.append(job)
 
-        deduped_jobs = filtered_jobs
+        if filtered_jobs:
+            deduped_jobs = filtered_jobs
 
+    # 4. City filter
     if city_val and city_val.strip():
         c_lower = city_val.strip().lower()
-        city_filtered = []
-        for job in deduped_jobs:
-            loc = job.get("location", "").lower()
-            title = job.get("title", "").lower()
-            if c_lower in loc or c_lower in title or job.get("remote") is True:
-                city_filtered.append(job)
+        city_filtered = [
+            j for j in deduped_jobs
+            if c_lower in j.get("location", "").lower() or c_lower in j.get("title", "").lower()
+        ]
         if city_filtered:
             deduped_jobs = city_filtered
 
