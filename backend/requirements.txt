@@ -12,3 +12,4 @@ langchain-anthropic
 anthropic
 openai
 sentence-transformers
+pytest
