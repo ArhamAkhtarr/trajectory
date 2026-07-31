@@ -43,11 +43,20 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
     def test_extract_skills_node(self, mock_anthropic_cls):
         mock_client = AsyncMock()
         mock_msg = MagicMock()
-        mock_msg.content = [
-            MagicMock(
-                text='{"highest_education": "Bachelor of Science in Computer Science", "skills": ["Python", "FastAPI"], "tools": ["Git", "Docker"]}'
-            )
-        ]
+        mock_block = MagicMock()
+        mock_block.type = "tool_use"
+        mock_block.name = "submit_resume_analysis"
+        mock_block.input = {
+            "highest_education": "Bachelor of Science in Computer Science",
+            "skills": ["Python", "FastAPI"],
+            "tools": ["Git", "Docker"],
+            "seniority_level": "Software Engineer",
+            "suggested_roles": ["Backend Developer", "Python Engineer", "API Lead"],
+            "summary_pitch": "Experienced developer.",
+            "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
+            "top_recommendations": ["Rec 1", "Rec 2", "Rec 3"],
+        }
+        mock_msg.content = [mock_block]
         mock_client.messages.create.return_value = mock_msg
         mock_anthropic_cls.return_value = mock_client
 
@@ -61,11 +70,7 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
     def test_infer_role_node(self, mock_anthropic_cls):
         mock_client = AsyncMock()
         mock_msg = MagicMock()
-        mock_msg.content = [
-            MagicMock(
-                text='{"suggested_roles": ["Backend Developer", "Python Engineer", "API Lead"]}'
-            )
-        ]
+        mock_msg.content = []
         mock_client.messages.create.return_value = mock_msg
         mock_anthropic_cls.return_value = mock_client
 
@@ -76,6 +81,7 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
                         "highest_education": "Master of Science in Software Engineering",
                         "skills": ["Python", "FastAPI"],
                         "tools": ["Git"],
+                        "suggested_roles": ["Backend Developer", "Python Engineer", "API Lead"],
                     }
                 )
             )

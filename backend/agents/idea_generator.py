@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -17,6 +18,7 @@ class IdeaGeneratorState(TypedDict, total=False):
     skills: list[str]
     target_roles: list[str]
     file_reference_id: str | None
+    live_market_insights: list[str]
     skill_gaps: list[str]
     project_ideas: list[dict]
     error: str | None
@@ -88,7 +90,7 @@ def _get_domain_project_fallback(highest_edu: str, skills: list[str], target_rol
                 "suggested_stack": ["SolidWorks", "Ansys FEA", "MATLAB", "Arduino/C++", "3D Printing"],
                 "difficulty": "Advanced",
                 "estimated_hours": 30,
-                "market_relevance": f"In-demand for Mechanical Engineering roles to demonstrate structural load simulation, CAD assembly, and mechatronic control.",
+                "market_relevance": f"Directly requested in live Mechanical Engineering job ads for structural load simulation, CAD assembly, and mechatronic control.",
                 "architecture_pipeline": [
                     {
                         "phase": "Phase 1: CAD Kinematic Modeling",
@@ -119,7 +121,7 @@ def _get_domain_project_fallback(highest_edu: str, skills: list[str], target_rol
                 "suggested_stack": ["MATLAB", "LabVIEW", "Proteus", "Instrumentation Amplifiers", "Python"],
                 "difficulty": "Advanced",
                 "estimated_hours": 25,
-                "market_relevance": "Directly aligns with Medical Device R&D demands for biosensor integration and clinical compliance.",
+                "market_relevance": "Directly aligns with Medical Device R&D live job postings for biosensor integration and clinical compliance.",
                 "architecture_pipeline": [
                     {
                         "phase": "Phase 1: Analog Front-End Design",
@@ -146,7 +148,7 @@ def _get_domain_project_fallback(highest_edu: str, skills: list[str], target_rol
                 "suggested_stack": ["STAAD.Pro", "Revit BIM", "AutoCAD", "ETABS", "MS Excel"],
                 "difficulty": "Advanced",
                 "estimated_hours": 28,
-                "market_relevance": "Demonstrates structural engineering competency in seismic design codes and 3D BIM coordination.",
+                "market_relevance": "Demonstrates structural engineering competency currently demanded in active civil engineering job ads.",
                 "architecture_pipeline": [
                     {
                         "phase": "Phase 1: Structural Grid & Load Modeling",
@@ -174,7 +176,7 @@ def _get_domain_project_fallback(highest_edu: str, skills: list[str], target_rol
             "suggested_stack": ["Altium Designer", "LTspice", "STM32 / C++", "MATLAB", "Proteus"],
             "difficulty": "Advanced",
             "estimated_hours": 28,
-            "market_relevance": f"Highly valued in {target_roles[0] if target_roles else 'Electrical Engineering'} positions requiring hardware PCB design and power conversion efficiency.",
+            "market_relevance": f"Highly valued in active job ads for {target_roles[0] if target_roles else 'Electrical Engineering'} positions requiring PCB layout and power conversion.",
             "architecture_pipeline": [
                 {
                     "phase": "Phase 1: Circuit Topology & Simulation",
@@ -195,26 +197,85 @@ def _get_domain_project_fallback(highest_edu: str, skills: list[str], target_rol
     ]
 
 
+async def fetch_live_job_market_insights(target_roles: list[str]) -> list[str]:
+    """Queries active job search APIs for the candidate's target roles
+    to extract live job posting requirements, demanded skills, and tools."""
+    if not target_roles:
+        return []
+
+    search_query = target_roles[0]
+    market_snippets: list[str] = []
+
+    try:
+        try:
+            from adapters.adzuna import search_adzuna
+            from adapters.remotive import search_remotive
+            from adapters.remoteok import search_remoteok
+            from adapters.arbeitnow import search_arbeitnow
+        except ImportError:
+            from backend.adapters.adzuna import search_adzuna
+            from backend.adapters.remotive import search_remotive
+            from backend.adapters.remoteok import search_remoteok
+            from backend.adapters.arbeitnow import search_arbeitnow
+
+        adzuna_task = asyncio.create_task(search_adzuna(query=search_query, country="us", page=1))
+        remotive_task = asyncio.create_task(search_remotive(query=search_query, page=1))
+        remoteok_task = asyncio.create_task(search_remoteok(query=search_query, page=1))
+        arbeitnow_task = asyncio.create_task(search_arbeitnow(query=search_query, page=1))
+
+        results = await asyncio.gather(
+            adzuna_task, remotive_task, remoteok_task, arbeitnow_task, return_exceptions=True
+        )
+
+        all_live_jobs = []
+        for r in results:
+            if isinstance(r, list):
+                all_live_jobs.extend(r)
+
+        for job in all_live_jobs[:10]:
+            title = job.get("title", "")
+            company = job.get("company", "")
+            desc = job.get("description", "")[:180]
+            if title:
+                snippet = f"Live Active Job Posting: '{title}' at {company}. Description: {desc}"
+                market_snippets.append(snippet)
+
+    except Exception as e:
+        logger.warning(f"Could not fetch live job market insights: {e}")
+
+    return market_snippets[:6]
+
+
+async def fetch_market_node(state: IdeaGeneratorState) -> dict:
+    target_roles = state.get("target_roles", [])
+    insights = await fetch_live_job_market_insights(target_roles)
+    return {"live_market_insights": insights}
+
+
 async def identify_skill_gaps(state: IdeaGeneratorState) -> dict:
     highest_edu = state.get("highest_education", "Engineering Degree")
     skills = state.get("skills", [])
     target_roles = state.get("target_roles", [])
+    market_insights = state.get("live_market_insights", [])
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
     if not api_key:
         logger.warning("ANTHROPIC_API_KEY missing. Using domain gap fallbacks.")
         return {"skill_gaps": _get_domain_gaps(highest_edu, skills, target_roles)}
 
-    prompt = f"""You are a senior engineering career mentor. Identify 3 to 5 CRITICAL SKILL GAPS for a candidate to elevate their portfolio for high-growth industry roles.
+    prompt = f"""You are a senior engineering career mentor analyzing active job market trends.
 
-Candidate Profile:
+Candidate Profile from CV:
 - Highest Education: {highest_edu}
 - Current Skills: {", ".join(skills) if skills else "General Engineering"}
 - Target Roles: {", ".join(target_roles) if target_roles else "Engineer"}
 
+LIVE ACTIVE JOB MARKET ADS (Extracted from Job Sites for Candidate's Target Roles):
+{json.dumps(market_insights, indent=2) if market_insights else "Active postings for target engineering roles."}
+
 CRITICAL REQUIREMENT:
-Do NOT simply repeat the candidate's existing skills back to them.
-Identify NEW, high-demand industry skills, tools, software, or standards (e.g. for Mechanical: CFD Simulation, Additive Manufacturing, GD&T; for Electrical: RTOS, High-Speed PCB Layout, CAN Bus, FPGA; for Biomedical: ISO 14971, FDA 510(k), Biosensors) that the candidate currently lacks and MUST master to get hired in {", ".join(target_roles[:2])}.
+Analyze both the candidate's CV and the LIVE JOB MARKET ADS above.
+Identify 3 to 5 REAL SKILL GAPS representing what active employers in today's job market are currently asking for in job postings that the candidate does NOT already have on their CV.
 
 Return ONLY a valid JSON object matching this schema:
 {{
@@ -244,40 +305,39 @@ async def generate_project_ideas(state: IdeaGeneratorState) -> dict:
     skills = state.get("skills", [])
     target_roles = state.get("target_roles", [])
     skill_gaps = state.get("skill_gaps", [])
+    market_insights = state.get("live_market_insights", [])
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
     if not api_key:
         logger.warning("ANTHROPIC_API_KEY missing. Using fallback project ideas.")
         return {"project_ideas": _get_domain_project_fallback(highest_edu, skills, target_roles)}
 
-    prompt = f"""You are a principal engineering architect. Generate 4 to 6 FRESH, INNOVATIVE portfolio project recommendations.
+    prompt = f"""You are a principal engineering architect designing market-driven portfolio projects.
 
-Candidate Profile:
+Candidate Profile from CV:
 - Highest Education: {highest_edu}
 - Current Skills: {", ".join(skills)}
 - Target Market Roles: {", ".join(target_roles)}
 - Identified Skill Gaps to Bridge: {", ".join(skill_gaps)}
 
+LIVE ACTIVE JOB MARKET ADS (Extracted from Job Sites for Candidate's Target Roles):
+{json.dumps(market_insights, indent=2) if market_insights else "Active postings for target engineering roles."}
+
 CRITICAL REQUIREMENTS:
-1. Every project MUST directly correspond to candidate's EXACT discipline ({highest_edu}, {", ".join(target_roles[:2])}).
-   - If Electrical Engineering: PCB design, microcontrollers, LTspice, signal processing, power electronics.
-   - If Mechanical Engineering: 3D CAD modeling (SolidWorks/CATIA), FEA stress analysis (Ansys), thermal fluid simulation, robotics.
-   - If Biomedical Engineering: Medical device prototyping, biosignal processing (MATLAB/LabVIEW), biomaterials, FDA compliance.
-   - If Civil Engineering: Structural analysis (STAAD.Pro/ETABS), Revit 3D BIM modeling, geotechnical simulation.
-   - If Chemical Engineering: Process simulation (Aspen HYSYS), reaction kinetics, plant safety.
-2. The projects MUST challenge the candidate to bridge their identified skill gaps ({", ".join(skill_gaps[:3])}) and build real-world engineering artifacts.
+1. Every project MUST directly correspond to candidate's discipline ({highest_edu}, {", ".join(target_roles[:2])}) and build real-world systems requested in active job market ads.
+2. The projects MUST challenge the candidate to master their identified skill gaps ({", ".join(skill_gaps[:3])}).
 3. Include a 4-phase step-by-step architecture pipeline, key features list, and folder structure.
 
 Return ONLY a valid JSON object matching this schema:
 {{
   "project_ideas": [
     {{
-      "title": "Innovative Project Title",
-      "description": "Clear 2-sentence description combining candidate's background with new target skills.",
+      "title": "Market-Driven Project Title",
+      "description": "Clear 2-sentence description solving a real problem requested in active job ads.",
       "suggested_stack": ["Tool/Software 1", "Tool/Software 2", "Hardware/Framework 3"],
       "difficulty": "Advanced",
       "estimated_hours": 28,
-      "market_relevance": "Why hiring managers for {target_roles[0] if target_roles else 'Engineers'} value this project.",
+      "market_relevance": "Direct reference to active job posting requirements for {target_roles[0] if target_roles else 'Engineers'}.",
       "architecture_pipeline": [
         {{
           "phase": "Phase 1: Design & Simulation",
@@ -340,7 +400,7 @@ Return ONLY a valid JSON object matching this schema:
                     "suggested_stack": [str(s) for s in idea.get("suggested_stack", ["MATLAB", "SolidWorks"])],
                     "difficulty": str(idea.get("difficulty", "Advanced")),
                     "estimated_hours": int(idea.get("estimated_hours", 25)),
-                    "market_relevance": str(idea.get("market_relevance", "High market demand for target engineering roles.")),
+                    "market_relevance": str(idea.get("market_relevance", "Directly requested in active job market postings.")),
                     "architecture_pipeline": pipeline,
                     "key_features": [str(f) for f in idea.get("key_features", ["High performance", "Industry compliance"])],
                     "repository_structure": [str(r) for r in idea.get("repository_structure", ["design/schematic.pdf", "simulation/test.m"])],
@@ -353,13 +413,15 @@ Return ONLY a valid JSON object matching this schema:
         return {"project_ideas": _get_domain_project_fallback(highest_edu, skills, target_roles)}
 
 
-# Construct LangGraph workflow graph
+# Construct LangGraph workflow graph with Live Market Node
 workflow = StateGraph(IdeaGeneratorState)
 
+workflow.add_node("fetch_market_node", fetch_market_node)
 workflow.add_node("identify_skill_gaps", identify_skill_gaps)
 workflow.add_node("generate_project_ideas", generate_project_ideas)
 
-workflow.set_entry_point("identify_skill_gaps")
+workflow.set_entry_point("fetch_market_node")
+workflow.add_edge("fetch_market_node", "identify_skill_gaps")
 workflow.add_edge("identify_skill_gaps", "generate_project_ideas")
 workflow.add_edge("generate_project_ideas", END)
 
@@ -386,6 +448,7 @@ async def generate_ideas_agent(
         "highest_education": highest_education,
         "skills": skills,
         "target_roles": target_roles,
+        "live_market_insights": final_state.get("live_market_insights", []),
         "skill_gaps": final_state.get("skill_gaps", []),
         "project_ideas": final_state.get("project_ideas", []),
     }
