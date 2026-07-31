@@ -3,3 +3,7 @@ uvicorn
 httpx
 pydantic
 python-dotenv
+pdfplumber
+python-docx
+python-multipart
+supabase

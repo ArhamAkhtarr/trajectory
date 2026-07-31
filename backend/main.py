@@ -1,7 +1,8 @@
 import asyncio
 import logging
+import uuid
 from dotenv import load_dotenv
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 
 from adapters import (
     build_deeplinks,
@@ -15,6 +16,10 @@ from adapters.utils import (
     deduplicate_jobs,
     is_remote_heuristic,
     sort_jobs_by_date,
+)
+from services.resume_service import (
+    extract_resume_text,
+    upload_file_to_supabase,
 )
 
 load_dotenv()
@@ -47,13 +52,11 @@ async def search_jobs(
     ),
     page: int = Query(default=1, ge=1, description="Page number"),
 ):
-    # Parameter values extraction
     country_val = country if isinstance(country, str) else "us"
     city_val = city if isinstance(city, str) else None
     mode_val = mode if isinstance(mode, str) else None
     page_val = page if isinstance(page, int) and not isinstance(page, bool) else 1
 
-    # Execute all 5 adapters concurrently
     raw_results = await asyncio.gather(
         _safe_search(search_adzuna, query, country_val, city_val, page_val),
         _safe_search(search_remotive, query, country_val, city_val, page_val),
@@ -68,10 +71,8 @@ async def search_jobs(
         if isinstance(res, list):
             merged_jobs.extend(res)
 
-    # Deduplicate near-duplicate listings (same title + company)
     deduped_jobs = deduplicate_jobs(merged_jobs)
 
-    # Filter by mode if requested
     if mode_val:
         m_lower = mode_val.strip().lower()
         filtered_jobs = []
@@ -95,13 +96,43 @@ async def search_jobs(
 
         deduped_jobs = filtered_jobs
 
-    # Sort by posted_date descending
     final_jobs = sort_jobs_by_date(deduped_jobs)
-
-    # Build external deeplinks for LinkedIn, Upwork, Fiverr, Rozee.pk
     external_links = build_deeplinks(query=query, country=country_val, city=city_val)
 
     return {
         "jobs": final_jobs,
         "external_links": external_links,
+    }
+
+
+@app.post("/resume/upload")
+async def upload_resume(
+    file: UploadFile = File(...),
+    user_id: str = Form(default="default_user"),
+):
+    if not file.filename:
+        raise HTTPException(status_code=422, detail="No file provided.")
+
+    file_bytes = await file.read()
+
+    # Extract text from PDF or DOCX (raises 422 on corrupt/unreadable files)
+    extracted_text = extract_resume_text(filename=file.filename, file_bytes=file_bytes)
+
+    # Generate reference ID
+    file_reference_id = str(uuid.uuid4())
+
+    # Store original file in Supabase Storage under per-user folder
+    storage_path = await upload_file_to_supabase(
+        user_id=user_id,
+        file_ref_id=file_reference_id,
+        filename=file.filename,
+        file_bytes=file_bytes,
+        content_type=file.content_type,
+    )
+
+    return {
+        "file_reference_id": file_reference_id,
+        "text": extracted_text,
+        "filename": file.filename,
+        "storage_path": storage_path,
     }
