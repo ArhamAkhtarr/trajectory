@@ -259,8 +259,17 @@ async def get_matched_jobs(
                 detail=f"No resume or analysis found for file_reference_id '{file_reference_id}'. Please upload a resume first.",
             )
 
+    effective_query = query
+    roles = profile.get("suggested_roles", [])
+    skills = profile.get("skills", [])
+
+    if (query.lower() in ("python", "software", "engineer", "") or not query.strip()) and roles:
+        effective_query = roles[0]
+    elif (query.lower() in ("python", "software", "engineer", "") or not query.strip()) and skills:
+        effective_query = skills[0]
+
     search_response = await search_jobs(
-        query=query, country=country, city=city, mode=mode, page=page
+        query=effective_query, country=country, city=city, mode=mode, page=page
     )
     all_jobs = search_response.get("jobs", [])
 

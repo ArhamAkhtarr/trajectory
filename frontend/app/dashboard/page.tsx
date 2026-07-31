@@ -93,7 +93,7 @@ export default function DashboardPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Matched Jobs Tab State
-  const [searchQuery, setSearchQuery] = useState("python");
+  const [searchQuery, setSearchQuery] = useState("engineering");
   const [matchedJobs, setMatchedJobs] = useState<MatchedJob[]>([]);
   const [matchingLoading, setMatchingLoading] = useState(false);
   const [matchedError, setMatchedError] = useState<string | null>(null);
@@ -197,6 +197,12 @@ export default function DashboardPage() {
       };
 
       setResumeData(combined);
+
+      if (analyzeResult.suggested_roles && analyzeResult.suggested_roles.length > 0) {
+        setSearchQuery(analyzeResult.suggested_roles[0]);
+      } else if (analyzeResult.skills && analyzeResult.skills.length > 0) {
+        setSearchQuery(analyzeResult.skills[0]);
+      }
     } catch (err: unknown) {
       console.error("Resume upload error:", err);
       setUploadError(

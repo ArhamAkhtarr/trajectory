@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
 from agents.resume_analyzer import (
+    _detect_domain_profile,
     analyze_resume_agent,
     embed_profile,
     extract_skills,
@@ -16,6 +17,27 @@ from main import app
 class TestResumeAnalyzerAgent(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
+
+    def test_detect_domain_profile_electrical(self):
+        text = "Bachelor of Science in Electrical Engineering. Skilled in PCB design, circuit analysis, Proteus, LTspice, and microcontrollers."
+        profile = _detect_domain_profile(text)
+        self.assertEqual(profile["seniority_level"], "Electrical Engineer")
+        self.assertIn("Circuit Design & Analysis", profile["skills"])
+        self.assertIn("Proteus", profile["tools"])
+
+    def test_detect_domain_profile_mechanical(self):
+        text = "BS in Mechanical Engineering with SolidWorks 3D CAD modeling, thermodynamics, FEA stress analysis, and Ansys simulation."
+        profile = _detect_domain_profile(text)
+        self.assertEqual(profile["seniority_level"], "Mechanical Engineer")
+        self.assertIn("Computer-Aided Design (CAD)", profile["skills"])
+        self.assertIn("SolidWorks", profile["tools"])
+
+    def test_detect_domain_profile_biomedical(self):
+        text = "Biomedical Engineering graduate specializing in medical device design, biosignals, LabVIEW, FDA compliance, and biomechanics."
+        profile = _detect_domain_profile(text)
+        self.assertEqual(profile["seniority_level"], "Biomedical Engineer")
+        self.assertIn("Medical Device Design", profile["skills"])
+        self.assertIn("LabVIEW", profile["tools"])
 
     @patch("agents.resume_analyzer.anthropic.AsyncAnthropic")
     def test_extract_skills_node(self, mock_anthropic_cls):
