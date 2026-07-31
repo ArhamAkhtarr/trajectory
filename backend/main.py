@@ -107,7 +107,7 @@ async def search_jobs(
 
     deduped_jobs = deduplicate_jobs(merged_jobs)
 
-    if mode_val:
+    if mode_val and mode_val.strip().lower() != "all":
         m_lower = mode_val.strip().lower()
         filtered_jobs = []
 
@@ -123,12 +123,23 @@ async def search_jobs(
                 if not is_remote and "hybrid" not in f"{title} {location}".lower():
                     filtered_jobs.append(job)
             elif m_lower == "hybrid":
-                if "hybrid" in f"{title} {location}".lower():
+                if "hybrid" in f"{title} {location}".lower() or "hybrid" in job.get("source", "").lower():
                     filtered_jobs.append(job)
             else:
                 filtered_jobs.append(job)
 
         deduped_jobs = filtered_jobs
+
+    if city_val and city_val.strip():
+        c_lower = city_val.strip().lower()
+        city_filtered = []
+        for job in deduped_jobs:
+            loc = job.get("location", "").lower()
+            title = job.get("title", "").lower()
+            if c_lower in loc or c_lower in title or job.get("remote") is True:
+                city_filtered.append(job)
+        if city_filtered:
+            deduped_jobs = city_filtered
 
     final_jobs = sort_jobs_by_date(deduped_jobs)
     external_links = build_deeplinks(query=query, country=country_val, city=city_val)

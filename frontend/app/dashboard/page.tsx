@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -67,6 +68,7 @@ const API_BASE_URL =
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [isGuest, setIsGuest] = useState(false);
   const [authLoading, setAuthLoading] = useState(true);
 
   // Resume & Analysis State
@@ -86,30 +88,34 @@ export default function DashboardPage() {
   const [projectIdeas, setProjectIdeas] = useState<ProjectIdea[]>([]);
   const [ideasError, setIdeasError] = useState<string | null>(null);
 
-  // Auth Guard
+  // Auth Guard & Guest Fallback
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.push("/login");
-      } else {
+      if (session) {
         setUser(session.user);
-        setAuthLoading(false);
+        setIsGuest(false);
+      } else {
+        setUser({ id: "guest_user", email: "Guest Mode" });
+        setIsGuest(true);
       }
+      setAuthLoading(false);
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
-        router.push("/login");
-      } else {
+      if (session) {
         setUser(session.user);
-        setAuthLoading(false);
+        setIsGuest(false);
+      } else {
+        setUser({ id: "guest_user", email: "Guest Mode" });
+        setIsGuest(true);
       }
+      setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, [router]);
+  }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -269,13 +275,30 @@ export default function DashboardPage() {
       {/* Header Banner */}
       <header className="border-b border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <Zap className="w-5 h-5 fill-current" />
-            </div>
-            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent">
-              Trajectory Dashboard
-            </span>
+          <div className="flex items-center space-x-6">
+            <Link href="/" className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                <Zap className="w-5 h-5 fill-current" />
+              </div>
+              <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent">
+                Trajectory Dashboard
+              </span>
+            </Link>
+
+            <nav className="hidden md:flex items-center space-x-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
+              <Link
+                href="/"
+                className="hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
+              >
+                Job Search
+              </Link>
+              <Link
+                href="/dashboard"
+                className="text-indigo-600 dark:text-indigo-400 font-bold"
+              >
+                Resume Analyzer
+              </Link>
+            </nav>
           </div>
 
           <div className="flex items-center space-x-4">
@@ -283,15 +306,26 @@ export default function DashboardPage() {
               <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
               <span>{user?.email}</span>
             </span>
-            <Button
-              onClick={handleSignOut}
-              variant="outline"
-              size="sm"
-              className="rounded-lg text-xs font-semibold"
-            >
-              <LogOut className="w-3.5 h-3.5 mr-1.5" />
-              <span>Sign Out</span>
-            </Button>
+            {isGuest ? (
+              <Button
+                onClick={() => router.push("/login")}
+                variant="default"
+                size="sm"
+                className="rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+              >
+                <span>Sign In</span>
+              </Button>
+            ) : (
+              <Button
+                onClick={handleSignOut}
+                variant="outline"
+                size="sm"
+                className="rounded-lg text-xs font-semibold"
+              >
+                <LogOut className="w-3.5 h-3.5 mr-1.5" />
+                <span>Sign Out</span>
+              </Button>
+            )}
           </div>
         </div>
       </header>

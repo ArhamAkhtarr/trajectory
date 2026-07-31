@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   Briefcase,
@@ -149,12 +150,18 @@ export default function SearchPage() {
             </span>
           </div>
           <nav className="flex items-center space-x-6 text-sm font-medium text-slate-600 dark:text-slate-400">
-            <span className="text-indigo-600 dark:text-indigo-400 font-semibold cursor-pointer">
+            <Link
+              href="/"
+              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+            >
               Job Search
-            </span>
-            <span className="hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer transition-colors">
+            </Link>
+            <Link
+              href="/dashboard"
+              className="hover:text-slate-900 dark:hover:text-slate-100 transition-colors hover:underline"
+            >
               Resume Analyzer
-            </span>
+            </Link>
           </nav>
         </div>
       </header>
