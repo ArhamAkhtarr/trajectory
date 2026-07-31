@@ -39,11 +39,13 @@ async def search_remotive(
                 clean_text(item.get("candidate_required_location"))
                 or "Worldwide"
             )
+            description = clean_text(item.get("description") or "")[:350]
 
             job_dict = {
                 "title": title,
                 "company": company,
                 "location": location,
+                "description": description,
                 "remote": True,
                 "url": item.get("url") or "",
                 "source": "remotive",

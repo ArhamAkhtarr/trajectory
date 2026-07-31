@@ -36,6 +36,7 @@ interface MatchedJob {
   title: string;
   company: string;
   location: string;
+  description?: string;
   remote: boolean;
   url: string;
   source: string;
@@ -481,10 +482,18 @@ export default function DashboardPage() {
                             </span>
                           </div>
 
-                          {job.reasoning && (
-                            <p className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200/60 dark:border-slate-700/60 mt-3 italic">
-                              &ldquo;{job.reasoning}&rdquo;
+                          {/* Real Job Description Snippet from Source Site */}
+                          {job.description && (
+                            <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed pt-2 line-clamp-3">
+                              {job.description}
                             </p>
+                          )}
+
+                          {job.reasoning && (
+                            <div className="text-xs text-indigo-900 dark:text-indigo-200 bg-indigo-50/70 dark:bg-indigo-950/40 p-3 rounded-xl border border-indigo-200/60 dark:border-indigo-800/60 mt-3 font-medium flex items-start space-x-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
+                              <span>{job.reasoning}</span>
+                            </div>
                           )}
                         </div>
 

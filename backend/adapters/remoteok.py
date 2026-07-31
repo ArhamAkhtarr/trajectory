@@ -44,10 +44,11 @@ async def search_remoteok(
             company = clean_text(item.get("company"))
             location = clean_text(item.get("location")) or "Worldwide"
             tags = " ".join(item.get("tags") or [])
-            description = item.get("description") or ""
+            raw_desc = item.get("description") or ""
+            description = clean_text(raw_desc)[:350]
 
             searchable_text = (
-                f"{title} {company} {tags} {description}".lower()
+                f"{title} {company} {tags} {raw_desc}".lower()
             )
 
             if query_words and not any(q in searchable_text for q in query_words):
@@ -57,12 +58,11 @@ async def search_remoteok(
                 "title": title,
                 "company": company,
                 "location": location,
+                "description": description,
                 "remote": True,
                 "url": item.get("url") or item.get("apply_url") or "",
                 "source": "remoteok",
-                "posted_date": normalize_date(
-                    item.get("date") or item.get("epoch")
-                ),
+                "posted_date": normalize_date(item.get("date")),
             }
             normalized_jobs.append(job_dict)
 

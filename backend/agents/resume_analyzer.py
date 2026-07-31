@@ -35,7 +35,8 @@ DOMAINS = [
     {
         "name": "Electrical Engineering",
         "keywords": [
-            "electrical",
+            "electrical engineer",
+            "electrical engineering",
             "circuit",
             "pcb",
             "microcontroller",
@@ -53,7 +54,7 @@ DOMAINS = [
             "multisim",
             "proteus",
             "ltspice",
-            "electrical engineering",
+            "hardware engineer",
         ],
         "degree": "Bachelor of Science in Electrical Engineering",
         "skills": [
@@ -72,22 +73,23 @@ DOMAINS = [
             "Embedded Systems Engineer",
             "Control Systems Specialist",
         ],
-        "pitch": "Versatile Electrical Engineer specializing in circuit design, power electronics, and hardware system integration.",
+        "pitch": "Versatile Electrical Engineer specializing in circuit design, power electronics, and hardware system integration based on practical project experience.",
         "key_strengths": [
             "Solid Electrical Engineering academic foundation",
-            "Hands-on circuit design and embedded microcontrollers",
-            "Proficiency in signal processing and PCB layout",
+            "Hands-on experience in circuit design and microcontrollers from work history",
+            "Proficiency in signal processing and PCB layout tools",
         ],
         "recommendations": [
-            "Highlight specific hardware projects and microcontrollers used",
-            "Add quantitative specs (e.g. voltage ranges, frequency limits) to project bullets",
+            "Highlight specific hardware project deliverables and microcontrollers used",
+            "Add quantitative specs (e.g. voltage ranges, frequency limits) to experience bullets",
             "Include PCB design tool suite details",
         ],
     },
     {
         "name": "Mechanical Engineering",
         "keywords": [
-            "mechanical",
+            "mechanical engineer",
+            "mechanical engineering",
             "cad",
             "solidworks",
             "thermodynamics",
@@ -102,7 +104,8 @@ DOMAINS = [
             "manufacturing",
             "mechatronics",
             "hvac",
-            "mechanical engineering",
+            "mechanical designer",
+            "thermal engineer",
         ],
         "degree": "Bachelor of Science in Mechanical Engineering",
         "skills": [
@@ -121,22 +124,23 @@ DOMAINS = [
             "Manufacturing Engineer",
             "Robotics Systems Specialist",
         ],
-        "pitch": "Innovative Mechanical Engineer skilled in 3D CAD modeling, FEA stress analysis, and thermal management systems.",
+        "pitch": "Innovative Mechanical Engineer skilled in 3D CAD modeling, FEA stress analysis, and thermal management systems backed by hands-on engineering accomplishments.",
         "key_strengths": [
             "Strong Mechanical Engineering academic foundation",
-            "Expertise in 3D CAD modeling and finite element analysis",
-            "Practical knowledge of thermal systems and manufacturing",
+            "Proven expertise in 3D CAD modeling and finite element analysis",
+            "Practical work experience in thermal systems and manufacturing",
         ],
         "recommendations": [
-            "Include CAD assembly complexity and tolerance details",
-            "Quantify thermal/stress load simulation results in project descriptions",
+            "Include CAD assembly complexity and tolerance details from key projects",
+            "Quantify thermal/stress load simulation results in career achievements",
             "List rapid prototyping and CNC fabrication experience",
         ],
     },
     {
         "name": "Biomedical Engineering",
         "keywords": [
-            "biomedical",
+            "biomedical engineer",
+            "biomedical engineering",
             "medical device",
             "biomechanics",
             "biomaterials",
@@ -150,7 +154,6 @@ DOMAINS = [
             "mri",
             "ultrasound",
             "biocompatibility",
-            "biomedical engineering",
         ],
         "degree": "Bachelor of Science in Biomedical Engineering",
         "skills": [
@@ -169,23 +172,24 @@ DOMAINS = [
             "Biomechanics Specialist",
             "Bio-Instrumentation Developer",
         ],
-        "pitch": "Detail-oriented Biomedical Engineer experienced in medical device prototyping, biosignal processing, and healthcare compliance.",
+        "pitch": "Detail-oriented Biomedical Engineer experienced in medical device prototyping, biosignal processing, and healthcare regulatory compliance.",
         "key_strengths": [
             "Strong Biomedical Science & Engineering background",
-            "Hands-on experience in medical instrumentation and signals",
-            "Knowledge of healthcare regulatory standards",
+            "Hands-on work experience in medical instrumentation and signals",
+            "Knowledge of healthcare regulatory standards (ISO 13485 / FDA)",
         ],
         "recommendations": [
-            "Highlight ISO 13485 / FDA regulatory compliance exposure",
-            "Quantify biosignal accuracy and testing protocols",
-            "Detail specific biomaterial or clinical testing methodologies",
+            "Highlight ISO 13485 / FDA regulatory compliance exposure in project duties",
+            "Quantify biosignal accuracy and clinical testing protocols",
+            "Detail specific biomaterial or device testing methodologies",
         ],
     },
     {
         "name": "Civil Engineering",
         "keywords": [
-            "civil",
-            "structural",
+            "civil engineer",
+            "civil engineering",
+            "structural engineer",
             "concrete",
             "geotechnical",
             "surveying",
@@ -195,7 +199,7 @@ DOMAINS = [
             "hydraulics",
             "infrastructure",
             "transportation",
-            "civil engineering",
+            "site engineer",
         ],
         "degree": "Bachelor of Science in Civil Engineering",
         "skills": [
@@ -214,14 +218,14 @@ DOMAINS = [
             "Geotechnical Engineer",
             "Site Engineer",
         ],
-        "pitch": "Results-driven Civil Engineer specializing in structural analysis, site design, and large-scale construction management.",
+        "pitch": "Results-driven Civil Engineer specializing in structural analysis, site design, and large-scale construction management based on field project experience.",
         "key_strengths": [
             "Solid Civil & Structural Engineering foundation",
-            "Proficiency in BIM software and building codes",
+            "Proficiency in BIM software and building codes from work history",
             "Proven construction site coordination skills",
         ],
         "recommendations": [
-            "Detail project scope sizes and budget scales managed",
+            "Detail project scope sizes and budget scales managed in experience bullets",
             "Highlight specific structural codes and software used",
             "Add certifications like EIT or PE tracking",
         ],
@@ -229,8 +233,9 @@ DOMAINS = [
     {
         "name": "Chemical Engineering",
         "keywords": [
-            "chemical",
-            "process engineering",
+            "chemical engineer",
+            "chemical engineering",
+            "process engineer",
             "reaction kinetics",
             "aspen",
             "polymers",
@@ -239,7 +244,6 @@ DOMAINS = [
             "thermodynamics",
             "separation processes",
             "distillation",
-            "chemical engineering",
         ],
         "degree": "Bachelor of Science in Chemical Engineering",
         "skills": [
@@ -257,10 +261,10 @@ DOMAINS = [
             "R&D Process Specialist",
             "Process Safety Engineer",
         ],
-        "pitch": "Process-focused Chemical Engineer skilled in plant optimization, mass transport simulation, and safety protocols.",
+        "pitch": "Process-focused Chemical Engineer skilled in plant optimization, mass transport simulation, and safety protocols based on plant experience.",
         "key_strengths": [
             "Strong Chemical Process & Thermodynamics background",
-            "Hands-on experience with process simulation software",
+            "Hands-on work experience with process simulation software",
             "Focus on plant safety and yield optimization",
         ],
         "recommendations": [
@@ -272,8 +276,9 @@ DOMAINS = [
     {
         "name": "Data Science & AI",
         "keywords": [
+            "data scientist",
             "data science",
-            "machine learning",
+            "machine learning engineer",
             "deep learning",
             "pandas",
             "pytorch",
@@ -300,14 +305,14 @@ DOMAINS = [
             "AI Research Specialist",
             "Data Analyst",
         ],
-        "pitch": "Data Scientist proficient in machine learning architectures, statistical modeling, and data-driven insights.",
+        "pitch": "Data Scientist proficient in machine learning architectures, statistical modeling, and data-driven insights demonstrated in work experience.",
         "key_strengths": [
             "Strong mathematical and statistical foundation",
             "Expertise in ML frameworks and data processing",
             "Proven track record of predictive modeling",
         ],
         "recommendations": [
-            "Include model accuracy/ROC-AUC metrics",
+            "Include model accuracy/ROC-AUC metrics from past projects",
             "Detail production deployment of ML models",
             "Highlight feature engineering methodologies",
         ],
@@ -315,8 +320,12 @@ DOMAINS = [
     {
         "name": "Software & Computer Engineering",
         "keywords": [
-            "software",
-            "python",
+            "software engineer",
+            "software developer",
+            "python developer",
+            "full stack engineer",
+            "backend developer",
+            "frontend developer",
             "javascript",
             "react",
             "fastapi",
@@ -348,14 +357,14 @@ DOMAINS = [
             "Full Stack Engineer",
             "DevOps Specialist",
         ],
-        "pitch": "Versatile Software Engineer with strong background in building scalable APIs and modern web applications.",
+        "pitch": "Versatile Software Engineer with strong background in building scalable APIs and modern web applications across career history.",
         "key_strengths": [
             "Solid Computer Science academic foundation",
             "Multi-stack software engineering proficiency",
             "Experience with modern cloud and API tooling",
         ],
         "recommendations": [
-            "Add quantitative performance gains to project bullets",
+            "Add quantitative performance gains to work history bullets",
             "Detail cloud deployment pipelines and testing suites",
             "Include system architecture diagrams",
         ],
@@ -390,7 +399,7 @@ def _detect_domain_profile(text: str) -> dict:
             best_domain = domain
 
     if not best_domain or max_matches == 0:
-        best_domain = DOMAINS[0]  # Default to Electrical Engineering if unknown
+        best_domain = DOMAINS[0]
 
     return {
         "highest_education": extracted_degree or best_domain["degree"],
@@ -425,7 +434,6 @@ async def extract_skills(state: ResumeState) -> dict:
     resume_text = state.get("resume_text", "")
     api_key = os.getenv("ANTHROPIC_API_KEY")
 
-    # Smart domain profile detector based on resume text
     detected_profile = _detect_domain_profile(resume_text)
 
     if not api_key:
@@ -442,21 +450,21 @@ async def extract_skills(state: ResumeState) -> dict:
             "top_recommendations": detected_profile["top_recommendations"],
         }
 
-    prompt = f"""You are a principal executive talent auditor and AI resume reviewer.
+    prompt = f"""You are an executive career auditor. Thoroughly analyze the candidate's resume text below.
 
-CRITICAL DISCIPLINE INSTRUCTION:
-The candidate can belong to ANY engineering field or discipline (such as Electrical Engineering, Mechanical Engineering, Biomedical Engineering, Civil Engineering, Chemical Engineering, Data Science, or Software Engineering).
-Do NOT default to Software Engineering or Python unless the candidate's resume text explicitly describes software engineering.
-Analyze the candidate's SPECIFIC field of study, degree, tools, and technical skills from the text below.
+CRITICAL INSTRUCTION:
+Do NOT analyze based solely on skills or degree in isolation!
+Carefully inspect the candidate's WORK EXPERIENCE SECTION (job titles held, key responsibilities, achievements, projects) combined with their HIGHEST EDUCATION degree and TECHNICAL SKILLS/TOOLS.
+Accurately distinguish their exact engineering field (e.g. Mechanical Engineer vs Civil Engineer vs Electrical Engineer vs Biomedical Engineer vs Software Engineer).
 
 Extract comprehensive structured insight matching this EXACT JSON schema:
 {{
-  "highest_education": "e.g. Bachelor of Science in Electrical Engineering",
-  "skills": ["list of core domain skills from the text"],
-  "tools": ["list of frameworks, software, CAD tools, languages, databases"],
-  "seniority_level": "e.g. Electrical Engineer / Mechanical Systems Specialist",
-  "summary_pitch": "Compelling 2-sentence executive summary emphasizing academic degree + domain technical capabilities.",
-  "key_strengths": ["Top strength 1", "Top strength 2", "Top strength 3"],
+  "highest_education": "Exact degree level and major from text (e.g. Bachelor of Science in Civil Engineering)",
+  "skills": ["list of core technical domain skills from experience and projects"],
+  "tools": ["list of CAD, software, hardware, simulation tools used in work experience"],
+  "seniority_level": "Accurate professional title matching work history and degree (e.g. Senior Civil Engineer)",
+  "summary_pitch": "Comprehensive 3-sentence executive candidate profile synthesizing Work Experience duties + Highest Education + Core Skills.",
+  "key_strengths": ["Top strength 1 from work experience", "Top strength 2 from skills", "Top strength 3 from projects"],
   "top_recommendations": ["Actionable recommendation 1", "Actionable recommendation 2", "Actionable recommendation 3"]
 }}
 
@@ -518,7 +526,7 @@ async def infer_role(state: ResumeState) -> dict:
         logger.warning("ANTHROPIC_API_KEY missing. Using domain heuristic role inference.")
         return {"suggested_roles": detected_profile["roles"]}
 
-    prompt = f"""You are a senior career advisor and executive recruiter.
+    prompt = f"""You are a senior executive recruiter.
 
 Candidate Profile:
 - Highest Education: {highest_edu}
@@ -526,12 +534,12 @@ Candidate Profile:
 - Tools & Software: {", ".join(tools)}
 
 Resume snippet:
-{resume_text[:1000]}
+{resume_text[:1200]}
 
 CRITICAL REQUIREMENT:
-Suggest 3 to 5 highly relevant job titles this candidate is qualified for in their EXACT engineering or professional field.
-Your role suggestions MUST be PRIMARILY grounded in their HIGHEST EDUCATION degree level ({highest_edu}) and their specific field (e.g., Electrical Engineering, Mechanical Engineering, Biomedical Engineering, Civil Engineering, Chemical Engineering, etc.).
-Do NOT default to Software Engineer unless the candidate's degree and skills are explicitly in software/computer science.
+Suggest 3 to 5 highly relevant job titles this candidate is qualified for based on their WORK EXPERIENCE history and DEGREE field.
+Do NOT give a Civil Engineer title to a Mechanical Engineer, or a Software Engineer title to an Electrical Engineer!
+Ground role suggestions in their actual work responsibilities and field.
 
 Return ONLY a valid JSON object matching this schema:
 {{
@@ -562,11 +570,12 @@ async def embed_profile(state: ResumeState) -> dict:
     skills = state.get("skills", [])
     tools = state.get("tools", [])
     roles = state.get("suggested_roles", [])
+    pitch = state.get("summary_pitch", "")
     file_ref_id = state.get("file_reference_id", "")
     user_id = state.get("user_id", "default_user")
 
     profile_text = (
-        f"Education: {highest_edu}. "
+        f"Education: {highest_edu}. Summary: {pitch}. "
         f"Domain Skills: {', '.join(skills)}. Tools: {', '.join(tools)}. "
         f"Qualified Market Roles: {', '.join(roles)}."
     )

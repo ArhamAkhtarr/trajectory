@@ -36,24 +36,26 @@ async def search_arbeitnow(
             title = clean_text(item.get("title"))
             company = clean_text(item.get("company_name"))
             location = clean_text(item.get("location"))
-            description = item.get("description") or ""
+            raw_desc = item.get("description") or ""
+            description = clean_text(raw_desc)[:350]
             tags = " ".join(item.get("tags") or [])
 
             searchable_text = (
-                f"{title} {company} {location} {tags} {description}".lower()
+                f"{title} {company} {location} {tags} {raw_desc}".lower()
             )
 
             if query_words and not any(q in searchable_text for q in query_words):
                 continue
 
             remote_flag = bool(item.get("remote")) or is_remote_heuristic(
-                title, location, description
+                title, location, raw_desc
             )
 
             job_dict = {
                 "title": title,
                 "company": company,
                 "location": location,
+                "description": description,
                 "remote": remote_flag,
                 "url": item.get("url") or "",
                 "source": "arbeitnow",

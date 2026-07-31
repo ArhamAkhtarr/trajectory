@@ -59,7 +59,7 @@ async def search_jooble(
             title = clean_text(item.get("title"))
             company = clean_text(item.get("company"))
             location = clean_text(item.get("location"))
-            snippet = item.get("snippet") or ""
+            snippet = clean_text(item.get("snippet") or "")[:350]
 
             remote_flag = is_remote_heuristic(title, location, snippet)
 
@@ -67,6 +67,7 @@ async def search_jooble(
                 "title": title,
                 "company": company,
                 "location": location,
+                "description": snippet,
                 "remote": remote_flag,
                 "url": item.get("link") or "",
                 "source": "jooble",

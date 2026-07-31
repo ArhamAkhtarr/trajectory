@@ -56,7 +56,7 @@ async def search_adzuna(
 
             company = clean_text(company_info.get("display_name"))
             location = clean_text(location_info.get("display_name"))
-            description = item.get("description") or ""
+            description = clean_text(item.get("description") or "")[:350]
 
             remote_flag = is_remote_heuristic(title, location, description)
 
@@ -64,6 +64,7 @@ async def search_adzuna(
                 "title": title,
                 "company": company,
                 "location": location,
+                "description": description,
                 "remote": remote_flag,
                 "url": item.get("redirect_url") or item.get("url") or "",
                 "source": "adzuna",
