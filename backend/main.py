@@ -18,7 +18,10 @@ from adapters.utils import (
     is_remote_heuristic,
     sort_jobs_by_date,
 )
-from agents import analyze_resume_agent
+from agents import (
+    analyze_resume_agent,
+    generate_ideas_agent,
+)
 from services.matching_service import (
     compute_matched_jobs,
     rerank_jobs_with_claude,
@@ -34,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Trajectory API")
 
-# Memory store for uploads and analysis results
+# Memory stores for uploads and analysis results
 RESUME_CACHE: dict[str, dict] = {}
 ANALYSIS_CACHE: dict[str, dict] = {}
 
@@ -43,6 +46,12 @@ class ResumeAnalyzeRequest(BaseModel):
     file_reference_id: str
     resume_text: str | None = None
     user_id: str = "default_user"
+
+
+class IdeaGenerateRequest(BaseModel):
+    file_reference_id: str | None = None
+    skills: list[str] | None = None
+    target_roles: list[str] | None = None
 
 
 async def _safe_search(adapter_fn, query: str, country: str | None, city: str | None, page: int) -> list[dict]:
@@ -177,7 +186,6 @@ async def analyze_resume(request: ResumeAnalyzeRequest):
         file_reference_id=ref_id, resume_text=text, user_id=user_id
     )
 
-    # Store analysis result in cache for matching lookups
     ANALYSIS_CACHE[ref_id] = result
 
     return result
@@ -194,7 +202,6 @@ async def get_matched_jobs(
     ),
     page: int = Query(default=1, ge=1, description="Page number"),
 ):
-    # Lookup candidate resume profile from cache or trigger analysis
     profile = ANALYSIS_CACHE.get(file_reference_id)
     if not profile:
         cached_resume = RESUME_CACHE.get(file_reference_id)
@@ -211,7 +218,6 @@ async def get_matched_jobs(
                 detail=f"No resume or analysis found for file_reference_id '{file_reference_id}'. Please upload a resume first.",
             )
 
-    # Fetch aggregated job list across all 5 adapters
     search_response = await search_jobs(
         query=query, country=country, city=city, mode=mode, page=page
     )
@@ -224,10 +230,7 @@ async def get_matched_jobs(
             "file_reference_id": file_reference_id,
         }
 
-    # Step 1: Compute cosine similarity between resume embedding and job embeddings & select top 20
     top_20 = compute_matched_jobs(resume_profile=profile, all_jobs=all_jobs)
-
-    # Step 2: Re-rank the top 20 using a single Claude API call considering seniority fit & stack match
     final_matched = await rerank_jobs_with_claude(user_profile=profile, top_jobs=top_20)
 
     return {
@@ -235,3 +238,41 @@ async def get_matched_jobs(
         "total_matched": len(final_matched),
         "file_reference_id": file_reference_id,
     }
+
+
+@app.post("/ideas/generate")
+async def generate_ideas(request: IdeaGenerateRequest):
+    ref_id = request.file_reference_id
+    skills = request.skills or []
+    target_roles = request.target_roles or []
+
+    # If skills or target_roles omitted, look up from analysis cache or trigger analysis
+    if (not skills or not target_roles) and ref_id:
+        cached_analysis = ANALYSIS_CACHE.get(ref_id)
+        if not cached_analysis:
+            cached_resume = RESUME_CACHE.get(ref_id)
+            if cached_resume:
+                cached_analysis = await analyze_resume_agent(
+                    file_reference_id=ref_id,
+                    resume_text=cached_resume.get("text", ""),
+                    user_id=cached_resume.get("user_id", "default_user"),
+                )
+                ANALYSIS_CACHE[ref_id] = cached_analysis
+
+        if cached_analysis:
+            if not skills:
+                skills = cached_analysis.get("skills", [])
+            if not target_roles:
+                target_roles = cached_analysis.get("suggested_roles", [])
+
+    if not skills and not target_roles and not ref_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Please provide 'skills' and 'target_roles', or a valid 'file_reference_id'.",
+        )
+
+    result = await generate_ideas_agent(
+        skills=skills, target_roles=target_roles, file_reference_id=ref_id
+    )
+
+    return result
