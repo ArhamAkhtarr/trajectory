@@ -74,6 +74,10 @@ class ProfileSyncRequest(BaseModel):
     cv_summary: str | None = None
 
 
+class ProfileLookupRequest(BaseModel):
+    email: str
+
+
 async def _sync_supabase_profile(user_id: str, email: str, full_name: str | None = None, cv_summary: str | None = None):
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY")
@@ -119,6 +123,34 @@ async def _safe_search(adapter_fn, query: str, country: str | None, city: str | 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.post("/user/profile/lookup")
+async def lookup_user_profile(req: ProfileLookupRequest):
+    email_clean = req.email.strip().lower()
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+
+    if not supabase_url or not supabase_key or not email_clean:
+        return {"exists": False}
+
+    headers = {
+        "Authorization": f"Bearer {supabase_key}",
+        "apikey": supabase_key,
+    }
+    url = f"{supabase_url.rstrip('/')}/rest/v1/profiles?email=eq.{email_clean}&select=*"
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.get(url, headers=headers)
+            if res.status_code == 200:
+                data = res.json()
+                if isinstance(data, list) and len(data) > 0:
+                    return {"exists": True, "profile": data[0]}
+    except Exception as e:
+        logger.error(f"Error looking up user profile: {e}")
+
+    return {"exists": False}
 
 
 @app.post("/user/profile/sync")

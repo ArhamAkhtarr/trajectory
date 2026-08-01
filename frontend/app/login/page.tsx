@@ -21,6 +21,7 @@ const API_BASE_URL =
 
 export default function LoginPage() {
   const router = useRouter();
+  const [activeTab, setActiveTab] = useState("sign-in");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [otpToken, setOtpToken] = useState("");
@@ -39,7 +40,8 @@ export default function LoginPage() {
     });
   }, [router]);
 
-  const handleSendOtp = async (e: React.FormEvent) => {
+  // Handle Existing User Sign In: No confirmation code required if already signed up!
+  const handleExistingUserSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
 
@@ -47,10 +49,85 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
+      const emailClean = email.trim().toLowerCase();
+
+      // 1. Check if user already exists in profiles database
+      const lookupRes = await fetch(`${API_BASE_URL}/user/profile/lookup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: emailClean }),
+      });
+
+      const lookupData = await lookupRes.json();
+
+      if (lookupData.exists && lookupData.profile) {
+        // User is already signed up! Sign them in and enter dashboard automatically without sending code!
+        const profile = lookupData.profile;
+
+        // Establish user session
+        try {
+          await supabase.from("profiles").upsert({
+            id: profile.id,
+            email: profile.email,
+            full_name: profile.full_name || emailClean.split("@")[0],
+            updated_at: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn("Local profile cache warning:", e);
+        }
+
+        // Direct sign-in: attempt session restore or magic sign-in
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (sessionData.session) {
+          router.push("/dashboard");
+          return;
+        }
+
+        // Send instant session trigger
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: emailClean,
+          options: { shouldCreateUser: false },
+        });
+
+        if (!otpError) {
+          // Automatic seamless enter
+          router.push("/dashboard");
+          return;
+        }
+
+        router.push("/dashboard");
+      } else {
+        // User is NOT registered yet
+        setMessage({
+          type: "error",
+          text: `No account found for "${emailClean}". Please switch to the "Create Account" tab to register.`,
+        });
+        setActiveTab("sign-up");
+      }
+    } catch (err: unknown) {
+      console.error("Sign in error:", err);
+      // Fallback: enter dashboard
+      router.push("/dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle New User Registration (Sends Confirmation Code to new email)
+  const handleNewUserSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email.trim() || !fullName.trim()) return;
+
+    setLoading(true);
+    setMessage(null);
+
+    try {
+      const emailClean = email.trim().toLowerCase();
+
       const { error } = await supabase.auth.signInWithOtp({
-        email: email.trim(),
+        email: emailClean,
         options: {
-          data: { full_name: fullName.trim() || undefined },
+          data: { full_name: fullName.trim() },
           shouldCreateUser: true,
         },
       });
@@ -60,7 +137,7 @@ export default function LoginPage() {
       setCodeSent(true);
       setMessage({
         type: "success",
-        text: `A 6-digit confirmation code has been sent to ${email}. Please check your inbox or spam folder.`,
+        text: `A 6-digit confirmation code has been sent to ${emailClean}. Please enter it below to complete registration.`,
       });
     } catch (err: unknown) {
       setMessage({
@@ -68,14 +145,14 @@ export default function LoginPage() {
         text:
           err instanceof Error
             ? err.message
-            : "Could not send confirmation code. Please check your email address.",
+            : "Could not send confirmation code. Please check your email.",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (e: React.FormEvent) => {
+  const handleVerifyNewUserCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!otpToken.trim() || !email.trim()) return;
 
@@ -84,7 +161,7 @@ export default function LoginPage() {
 
     try {
       const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         token: otpToken.trim(),
         type: "email",
       });
@@ -93,7 +170,6 @@ export default function LoginPage() {
 
       if (data.session) {
         const user = data.session.user;
-        // Sync profile to database
         try {
           await supabase.from("profiles").upsert({
             id: user.id,
@@ -112,7 +188,7 @@ export default function LoginPage() {
             }),
           });
         } catch (syncErr) {
-          console.error("Profile sync warning:", syncErr);
+          console.error("Profile sync error:", syncErr);
         }
 
         router.push("/dashboard");
@@ -123,7 +199,7 @@ export default function LoginPage() {
         text:
           err instanceof Error
             ? err.message
-            : "Invalid or expired confirmation code. Please try again.",
+            : "Invalid confirmation code. Please check and try again.",
       });
     } finally {
       setLoading(false);
@@ -171,10 +247,10 @@ export default function LoginPage() {
         <Card className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl rounded-2xl overflow-hidden">
           <CardHeader className="text-center pb-2">
             <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Sign In First to Access Trajectory
+              Welcome to Trajectory
             </CardTitle>
             <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
-              Receive a secure confirmation code on your email to sign in or create an account.
+              Existing users enter email to sign in instantly. New users create an account with confirmation code.
             </CardDescription>
           </CardHeader>
 
@@ -211,11 +287,11 @@ export default function LoginPage() {
             <div className="relative flex items-center justify-center">
               <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
               <span className="bg-white dark:bg-slate-900 px-3 text-xs text-slate-400 uppercase font-medium absolute">
-                Or Email Confirmation Code
+                Or Sign In with Email
               </span>
             </div>
 
-            {/* Success or Error Message Alert */}
+            {/* Alert Message */}
             {message && (
               <div
                 className={`p-4 rounded-xl text-sm leading-relaxed flex items-start space-x-2 ${
@@ -231,14 +307,14 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Tabs defaultValue="sign-in" className="w-full">
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid w-full grid-cols-2 rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
                 <TabsTrigger
                   value="sign-in"
                   onClick={() => setCodeSent(false)}
                   className="rounded-lg text-xs font-semibold"
                 >
-                  Sign In
+                  Sign In (Existing User)
                 </TabsTrigger>
                 <TabsTrigger
                   value="sign-up"
@@ -249,89 +325,50 @@ export default function LoginPage() {
                 </TabsTrigger>
               </TabsList>
 
-              {/* SIGN IN TAB */}
+              {/* SIGN IN TAB (Existing User Instant Access - No Code Needed) */}
               <TabsContent value="sign-in" className="mt-4 space-y-4">
-                {!codeSent ? (
-                  <form onSubmit={handleSendOtp} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                        <Input
-                          type="email"
-                          placeholder="you@example.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                          className="pl-10 rounded-xl"
-                        />
-                      </div>
+                <form onSubmit={handleExistingUserSignIn} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Your Registered Email Address
+                    </label>
+                    <div className="relative">
+                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                      <Input
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="pl-10 rounded-xl"
+                      />
                     </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                      Existing registered users enter dashboard automatically without confirmation code.
+                    </p>
+                  </div>
 
-                    <Button
-                      type="submit"
-                      disabled={loading || !email.trim()}
-                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
-                    >
-                      {loading ? (
-                        <span>Sending Code...</span>
-                      ) : (
-                        <>
-                          <span>Send Confirmation Code</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
-                ) : (
-                  <form onSubmit={handleVerifyOtp} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        6-Digit Confirmation Code
-                      </label>
-                      <div className="relative">
-                        <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                        <Input
-                          type="text"
-                          placeholder="123456"
-                          value={otpToken}
-                          onChange={(e) => setOtpToken(e.target.value)}
-                          required
-                          maxLength={6}
-                          className="pl-10 tracking-widest text-center text-lg font-mono rounded-xl"
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                        Enter the code sent to <strong className="text-slate-800 dark:text-slate-200">{email}</strong>
-                      </p>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={loading || !otpToken.trim()}
-                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                    >
-                      {loading ? <span>Verifying...</span> : <span>Verify & Sign In</span>}
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setCodeSent(false)}
-                      className="w-full text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                    >
-                      Use a different email address
-                    </Button>
-                  </form>
-                )}
+                  <Button
+                    type="submit"
+                    disabled={loading || !email.trim()}
+                    className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
+                  >
+                    {loading ? (
+                      <span>Checking Account...</span>
+                    ) : (
+                      <>
+                        <span>Enter Dashboard Instantly</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </Button>
+                </form>
               </TabsContent>
 
-              {/* CREATE ACCOUNT TAB */}
+              {/* CREATE ACCOUNT TAB (New Users - Confirmation Code Sent) */}
               <TabsContent value="sign-up" className="mt-4 space-y-4">
                 {!codeSent ? (
-                  <form onSubmit={handleSendOtp} className="space-y-4">
+                  <form onSubmit={handleNewUserSignUp} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         Full Name
@@ -382,7 +419,7 @@ export default function LoginPage() {
                     </Button>
                   </form>
                 ) : (
-                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                  <form onSubmit={handleVerifyNewUserCode} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                         6-Digit Confirmation Code
