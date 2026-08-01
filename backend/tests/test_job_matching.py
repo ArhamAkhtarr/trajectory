@@ -36,7 +36,6 @@ class TestJobMatching(unittest.TestCase):
             "embedding": [1.0, 0.5, 0.0] * 128,
         }
 
-        # Create 30 sample jobs
         jobs = []
         for i in range(30):
             jobs.append(
@@ -52,17 +51,12 @@ class TestJobMatching(unittest.TestCase):
         self.assertEqual(len(matched), 20)
         self.assertIn("similarity_score", matched[0])
 
-    @patch("services.matching_service.anthropic.AsyncAnthropic")
-    def test_rerank_jobs_with_claude(self, mock_anthropic_cls):
-        mock_client = AsyncMock()
-        mock_msg = AsyncMock()
-        mock_msg.content = [
-            AsyncMock(
-                text='[{"id": 1, "fit_score": 98, "reasoning": "Top seniority match"}, {"id": 0, "fit_score": 85, "reasoning": "Good skill match"}]'
-            )
-        ]
-        mock_client.messages.create.return_value = mock_msg
-        mock_anthropic_cls.return_value = mock_client
+    @patch("services.matching_service.query_ollama", new_callable=AsyncMock)
+    def test_rerank_jobs_with_claude(self, mock_query_ollama):
+        mock_query_ollama.return_value = (
+            '[{"id": 1, "fit_score": 98, "reasoning": "Top seniority match"}, '
+            '{"id": 0, "fit_score": 85, "reasoning": "Good skill match"}]'
+        )
 
         profile = {
             "skills": ["Python", "FastAPI"],
@@ -83,12 +77,11 @@ class TestJobMatching(unittest.TestCase):
             },
         ]
 
-        with patch("services.matching_service.os.getenv", return_value="dummy_key"):
-            reranked = asyncio.run(rerank_jobs_with_claude(profile, jobs))
+        reranked = asyncio.run(rerank_jobs_with_claude(profile, jobs))
 
-            self.assertEqual(len(reranked), 2)
-            self.assertEqual(reranked[0]["title"], "Senior Python Engineer")
-            self.assertEqual(reranked[0]["fit_score"], 98)
+        self.assertEqual(len(reranked), 2)
+        self.assertEqual(reranked[0]["title"], "Senior Python Engineer")
+        self.assertEqual(reranked[0]["fit_score"], 98)
 
     @patch("main.search_jobs", new_callable=AsyncMock)
     @patch("main.analyze_resume_agent", new_callable=AsyncMock)
@@ -117,7 +110,6 @@ class TestJobMatching(unittest.TestCase):
             "external_links": [],
         }
 
-        # Seed RESUME_CACHE
         RESUME_CACHE["ref-999"] = {
             "text": "Python Developer resume text",
             "user_id": "user_1",

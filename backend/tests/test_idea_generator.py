@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -18,34 +18,21 @@ class TestIdeaGeneratorAgent(unittest.TestCase):
         RESUME_CACHE.clear()
         ANALYSIS_CACHE.clear()
 
-    @patch("agents.idea_generator.anthropic.AsyncAnthropic")
-    def test_identify_skill_gaps_node(self, mock_anthropic_cls):
-        mock_client = AsyncMock()
-        mock_msg = MagicMock()
-        mock_msg.content = [
-            MagicMock(
-                text='{"skill_gaps": ["Docker Containerization", "Redis Caching", "CI/CD Pipelines"]}'
-            )
-        ]
-        mock_client.messages.create.return_value = mock_msg
-        mock_anthropic_cls.return_value = mock_client
+    @patch("agents.idea_generator.query_ollama", new_callable=AsyncMock)
+    def test_identify_skill_gaps_node(self, mock_query_ollama):
+        mock_query_ollama.return_value = '{"skill_gaps": ["Docker Containerization", "Redis Caching", "CI/CD Pipelines"]}'
 
-        with patch("agents.idea_generator.os.getenv", return_value="dummy_key"):
-            res = asyncio.run(
-                identify_skill_gaps(
-                    {"skills": ["Python", "FastAPI"], "target_roles": ["Backend Lead"]}
-                )
+        res = asyncio.run(
+            identify_skill_gaps(
+                {"skills": ["Python", "FastAPI"], "target_roles": ["Backend Lead"]}
             )
-            self.assertEqual(len(res["skill_gaps"]), 3)
-            self.assertIn("Docker Containerization", res["skill_gaps"])
+        )
+        self.assertEqual(len(res["skill_gaps"]), 3)
+        self.assertIn("Docker Containerization", res["skill_gaps"])
 
-    @patch("agents.idea_generator.anthropic.AsyncAnthropic")
-    def test_generate_project_ideas_node(self, mock_anthropic_cls):
-        mock_client = AsyncMock()
-        mock_msg = MagicMock()
-        mock_msg.content = [
-            MagicMock(
-                text="""{
+    @patch("agents.idea_generator.query_ollama", new_callable=AsyncMock)
+    def test_generate_project_ideas_node(self, mock_query_ollama):
+        mock_query_ollama.return_value = """{
   "project_ideas": [
     {
       "title": "Real-time Redis Task Queue",
@@ -56,30 +43,25 @@ class TestIdeaGeneratorAgent(unittest.TestCase):
     }
   ]
 }"""
-            )
-        ]
-        mock_client.messages.create.return_value = mock_msg
-        mock_anthropic_cls.return_value = mock_client
 
-        with patch("agents.idea_generator.os.getenv", return_value="dummy_key"):
-            res = asyncio.run(
-                generate_project_ideas(
-                    {
-                        "skills": ["Python", "FastAPI"],
-                        "target_roles": ["Backend Developer"],
-                        "skill_gaps": ["Redis Caching"],
-                    }
-                )
+        res = asyncio.run(
+            generate_project_ideas(
+                {
+                    "skills": ["Python", "FastAPI"],
+                    "target_roles": ["Backend Developer"],
+                    "skill_gaps": ["Redis Caching"],
+                }
             )
-            ideas = res["project_ideas"]
-            self.assertEqual(len(ideas), 1)
+        )
+        ideas = res["project_ideas"]
+        self.assertEqual(len(ideas), 1)
 
-            idea = ideas[0]
-            self.assertEqual(idea["title"], "Real-time Redis Task Queue")
-            self.assertIn("description", idea)
-            self.assertIn("suggested_stack", idea)
-            self.assertEqual(idea["difficulty"], "Intermediate")
-            self.assertEqual(idea["estimated_hours"], 20)
+        idea = ideas[0]
+        self.assertEqual(idea["title"], "Real-time Redis Task Queue")
+        self.assertIn("description", idea)
+        self.assertIn("suggested_stack", idea)
+        self.assertEqual(idea["difficulty"], "Intermediate")
+        self.assertEqual(idea["estimated_hours"], 20)
 
     @patch("main.generate_ideas_agent", new_callable=AsyncMock)
     def test_ideas_generate_endpoint_with_body(self, mock_agent):

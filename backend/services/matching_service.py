@@ -4,18 +4,11 @@ import math
 import os
 import re
 
-import anthropic
 from adapters.utils import is_remote_heuristic
 from agents.resume_analyzer import _generate_embedding
+from services.ollama_service import clean_json_string, query_ollama
 
 logger = logging.getLogger(__name__)
-
-
-def _clean_json_str(text: str) -> str:
-    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-    if match:
-        return match.group(1).strip()
-    return text.strip()
 
 
 def cosine_similarity(v1: list[float], v2: list[float]) -> float:
@@ -32,6 +25,8 @@ def cosine_similarity(v1: list[float], v2: list[float]) -> float:
 async def rerank_jobs_with_claude(
     user_profile: dict, top_jobs: list[dict]
 ) -> list[dict]:
+    """Re-ranks candidate jobs using local Ollama (Qwen2.5 3B).
+    Kept the function name rerank_jobs_with_claude for backward compatibility across calls."""
     highest_edu = user_profile.get("highest_education", "Engineering Degree")
     skills_list = user_profile.get("skills", [])
     skills_str = ", ".join(skills_list)
@@ -40,15 +35,7 @@ async def rerank_jobs_with_claude(
     pitch_str = user_profile.get("summary_pitch", "")
     primary_skill = skills_list[0] if skills_list else "Engineering"
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key or not top_jobs:
-        logger.warning(
-            "ANTHROPIC_API_KEY missing or empty top_jobs, using domain fallback reasoning."
-        )
-        for j in top_jobs:
-            sim = j.get("similarity_score", 0.7)
-            j["fit_score"] = int(round(max(sim, 0.75) * 100))
-            j["reasoning"] = f"Directly aligns with your {highest_edu} background and {primary_skill} expertise."
+    if not top_jobs:
         return top_jobs
 
     jobs_summary = []
@@ -83,20 +70,22 @@ Return ONLY a valid JSON array of objects re-ranked from best match to worst mat
     "id": 0,
     "fit_score": 95,
     "reasoning": "Specific 1-sentence explanation connecting job title/duties to candidate's {highest_edu} degree and key skills."
-  }},
-  ...
+  }}
 ]
 """
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        message = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}],
+        raw_resp = await query_ollama(
+            prompt=prompt,
+            system_prompt="You are an expert tech recruiter matching candidates to job listings.",
+            temperature=0.2,
+            json_format=True,
         )
-        content = message.content[0].text
-        json_str = _clean_json_str(content)
+
+        if not raw_resp:
+            raise ValueError("Ollama returned empty response")
+
+        json_str = clean_json_string(raw_resp)
         reranked_data = json.loads(json_str)
 
         reranked_jobs = []
@@ -113,7 +102,6 @@ Return ONLY a valid JSON array of objects re-ranked from best match to worst mat
                         job["reasoning"] = str(item.get("reasoning") or f"Complements your {highest_edu} degree and {primary_skill} engineering skills.")
                         reranked_jobs.append(job)
 
-        # Include any remaining jobs that were not returned by Claude
         for idx, job in enumerate(top_jobs):
             if idx not in seen_indices:
                 j = dict(job)
@@ -125,7 +113,7 @@ Return ONLY a valid JSON array of objects re-ranked from best match to worst mat
         return reranked_jobs
 
     except Exception as e:
-        logger.error(f"Claude re-ranking error: {e}")
+        logger.error(f"Ollama re-ranking error: {e}")
         for j in top_jobs:
             sim = j.get("similarity_score", 0.7)
             j["fit_score"] = int(round(max(sim, 0.75) * 100))

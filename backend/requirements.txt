@@ -8,8 +8,5 @@ python-docx
 python-multipart
 supabase
 langgraph
-langchain-anthropic
-anthropic
-openai
 sentence-transformers
 pytest

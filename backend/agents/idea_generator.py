@@ -5,9 +5,9 @@ import os
 import re
 from typing import TypedDict
 
-import anthropic
 from dotenv import load_dotenv
 from langgraph.graph import END, StateGraph
+from services.ollama_service import clean_json_string, query_ollama
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -62,13 +62,6 @@ DOMAIN_GAP_FALLBACKS = {
         "Redis Rate-Limiting & High-Throughput In-Memory Caching",
     ],
 }
-
-
-def _clean_json_str(text: str) -> str:
-    match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", text)
-    if match:
-        return match.group(1).strip()
-    return text.strip()
 
 
 def _get_domain_gaps(highest_edu: str, skills: list[str], target_roles: list[str]) -> list[str]:
@@ -257,11 +250,6 @@ async def identify_skill_gaps(state: IdeaGeneratorState) -> dict:
     skills = state.get("skills", [])
     target_roles = state.get("target_roles", [])
     market_insights = state.get("live_market_insights", [])
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY missing. Using domain gap fallbacks.")
-        return {"skill_gaps": _get_domain_gaps(highest_edu, skills, target_roles)}
 
     prompt = f"""You are a senior engineering career mentor analyzing active job market trends.
 
@@ -284,14 +272,16 @@ Return ONLY a valid JSON object matching this schema:
 """
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        message = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=800,
-            messages=[{"role": "user", "content": prompt}],
+        raw_resp = await query_ollama(
+            prompt=prompt,
+            system_prompt="You are a senior technical career mentor.",
+            temperature=0.2,
+            json_format=True,
         )
-        content = message.content[0].text
-        json_str = _clean_json_str(content)
+        if not raw_resp:
+            return {"skill_gaps": _get_domain_gaps(highest_edu, skills, target_roles)}
+
+        json_str = clean_json_string(raw_resp)
         parsed = json.loads(json_str)
         gaps = parsed.get("skill_gaps", [])
         return {"skill_gaps": gaps if gaps else _get_domain_gaps(highest_edu, skills, target_roles)}
@@ -306,11 +296,6 @@ async def generate_project_ideas(state: IdeaGeneratorState) -> dict:
     target_roles = state.get("target_roles", [])
     skill_gaps = state.get("skill_gaps", [])
     market_insights = state.get("live_market_insights", [])
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-
-    if not api_key:
-        logger.warning("ANTHROPIC_API_KEY missing. Using fallback project ideas.")
-        return {"project_ideas": _get_domain_project_fallback(highest_edu, skills, target_roles)}
 
     prompt = f"""You are a principal engineering architect designing market-driven portfolio projects.
 
@@ -364,14 +349,17 @@ Return ONLY a valid JSON object matching this schema:
 """
 
     try:
-        client = anthropic.AsyncAnthropic(api_key=api_key)
-        message = await client.messages.create(
-            model="claude-3-5-sonnet-20241022",
-            max_tokens=3000,
-            messages=[{"role": "user", "content": prompt}],
+        raw_resp = await query_ollama(
+            prompt=prompt,
+            system_prompt="You are a principal engineering architect.",
+            temperature=0.2,
+            json_format=True,
+            timeout=120.0,
         )
-        content = message.content[0].text
-        json_str = _clean_json_str(content)
+        if not raw_resp:
+            return {"project_ideas": _get_domain_project_fallback(highest_edu, skills, target_roles)}
+
+        json_str = clean_json_string(raw_resp)
         parsed = json.loads(json_str)
 
         raw_ideas = parsed.get("project_ideas", [])
@@ -406,7 +394,7 @@ Return ONLY a valid JSON object matching this schema:
                     "repository_structure": [str(r) for r in idea.get("repository_structure", ["design/schematic.pdf", "simulation/test.m"])],
                 })
 
-        return {"project_ideas": validated_ideas[:6]}
+        return {"project_ideas": validated_ideas[:6] if validated_ideas else _get_domain_project_fallback(highest_edu, skills, target_roles)}
 
     except Exception as e:
         logger.error(f"Error in generate_project_ideas node: {e}")

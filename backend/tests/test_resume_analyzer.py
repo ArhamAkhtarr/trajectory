@@ -1,11 +1,10 @@
 import asyncio
 import unittest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 from fastapi.testclient import TestClient
 
 from agents.resume_analyzer import (
-    _detect_domain_profile,
     analyze_resume_agent,
     embed_profile,
     extract_skills,
@@ -18,35 +17,9 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
 
-    def test_detect_domain_profile_electrical(self):
-        text = "Bachelor of Science in Electrical Engineering. Skilled in PCB design, circuit analysis, Proteus, LTspice, and microcontrollers."
-        profile = _detect_domain_profile(text)
-        self.assertEqual(profile["seniority_level"], "Electrical Engineer")
-        self.assertIn("Circuit Design & Analysis", profile["skills"])
-        self.assertIn("Proteus", profile["tools"])
-
-    def test_detect_domain_profile_mechanical(self):
-        text = "BS in Mechanical Engineering with SolidWorks 3D CAD modeling, thermodynamics, FEA stress analysis, and Ansys simulation."
-        profile = _detect_domain_profile(text)
-        self.assertEqual(profile["seniority_level"], "Mechanical Engineer")
-        self.assertIn("Computer-Aided Design (CAD)", profile["skills"])
-        self.assertIn("SolidWorks", profile["tools"])
-
-    def test_detect_domain_profile_biomedical(self):
-        text = "Biomedical Engineering graduate specializing in medical device design, biosignals, LabVIEW, FDA compliance, and biomechanics."
-        profile = _detect_domain_profile(text)
-        self.assertEqual(profile["seniority_level"], "Biomedical Engineer")
-        self.assertIn("Medical Device Design", profile["skills"])
-        self.assertIn("LabVIEW", profile["tools"])
-
-    @patch("agents.resume_analyzer.anthropic.AsyncAnthropic")
-    def test_extract_skills_node(self, mock_anthropic_cls):
-        mock_client = AsyncMock()
-        mock_msg = MagicMock()
-        mock_block = MagicMock()
-        mock_block.type = "tool_use"
-        mock_block.name = "submit_resume_analysis"
-        mock_block.input = {
+    @patch("agents.resume_analyzer.query_ollama", new_callable=AsyncMock)
+    def test_extract_skills_node_success(self, mock_query_ollama):
+        mock_query_ollama.return_value = """{
             "highest_education": "Bachelor of Science in Computer Science",
             "skills": ["Python", "FastAPI"],
             "tools": ["Git", "Docker"],
@@ -54,39 +27,49 @@ class TestResumeAnalyzerAgent(unittest.TestCase):
             "suggested_roles": ["Backend Developer", "Python Engineer", "API Lead"],
             "summary_pitch": "Experienced developer.",
             "key_strengths": ["Strength 1", "Strength 2", "Strength 3"],
-            "top_recommendations": ["Rec 1", "Rec 2", "Rec 3"],
-        }
-        mock_msg.content = [mock_block]
-        mock_client.messages.create.return_value = mock_msg
-        mock_anthropic_cls.return_value = mock_client
+            "top_recommendations": ["Rec 1", "Rec 2", "Rec 3"]
+        }"""
 
-        with patch("agents.resume_analyzer.os.getenv", return_value="dummy_key"):
-            res = asyncio.run(extract_skills({"resume_text": "Experienced Python Developer with BS in Computer Science"}))
-            self.assertEqual(res["skills"], ["Python", "FastAPI"])
-            self.assertEqual(res["tools"], ["Git", "Docker"])
-            self.assertEqual(res["highest_education"], "Bachelor of Science in Computer Science")
+        res = asyncio.run(
+            extract_skills({"resume_text": "Experienced Python Developer with BS in Computer Science"})
+        )
+        self.assertEqual(res["skills"], ["Python", "FastAPI"])
+        self.assertEqual(res["tools"], ["Git", "Docker"])
+        self.assertEqual(res["highest_education"], "Bachelor of Science in Computer Science")
+        self.assertIsNone(res["error"])
 
-    @patch("agents.resume_analyzer.anthropic.AsyncAnthropic")
-    def test_infer_role_node(self, mock_anthropic_cls):
-        mock_client = AsyncMock()
-        mock_msg = MagicMock()
-        mock_msg.content = []
-        mock_client.messages.create.return_value = mock_msg
-        mock_anthropic_cls.return_value = mock_client
+    def test_extract_skills_node_empty_resume_text(self):
+        res = asyncio.run(extract_skills({"resume_text": "   "}))
+        self.assertEqual(res["skills"], [])
+        self.assertIsNotNone(res["error"])
 
-        with patch("agents.resume_analyzer.os.getenv", return_value="dummy_key"):
-            res = asyncio.run(
-                infer_role(
-                    {
-                        "highest_education": "Master of Science in Software Engineering",
-                        "skills": ["Python", "FastAPI"],
-                        "tools": ["Git"],
-                        "suggested_roles": ["Backend Developer", "Python Engineer", "API Lead"],
-                    }
-                )
+    @patch("agents.resume_analyzer.asyncio.sleep", new_callable=AsyncMock)
+    @patch("agents.resume_analyzer.query_ollama", new_callable=AsyncMock)
+    def test_extract_skills_node_retries_then_fails(self, mock_query_ollama, mock_sleep):
+        mock_query_ollama.return_value = ""  # empty response
+
+        res = asyncio.run(extract_skills({"resume_text": "Some resume text here"}))
+        self.assertEqual(res["skills"], [])
+        self.assertIsNotNone(res["error"])
+        self.assertEqual(mock_query_ollama.call_count, 2)  # MAX_ANALYSIS_ATTEMPTS
+
+    def test_infer_role_node_passthrough(self):
+        res = asyncio.run(
+            infer_role(
+                {
+                    "highest_education": "Master of Science in Software Engineering",
+                    "skills": ["Python", "FastAPI"],
+                    "tools": ["Git"],
+                    "suggested_roles": ["Backend Developer", "Python Engineer", "API Lead"],
+                }
             )
-            self.assertEqual(len(res["suggested_roles"]), 3)
-            self.assertIn("Backend Developer", res["suggested_roles"])
+        )
+        self.assertEqual(len(res["suggested_roles"]), 3)
+        self.assertIn("Backend Developer", res["suggested_roles"])
+
+    def test_infer_role_node_missing_roles(self):
+        res = asyncio.run(infer_role({"highest_education": "BS in Computer Science"}))
+        self.assertEqual(res["suggested_roles"], [])
 
     def test_embed_profile_node(self):
         state = {
