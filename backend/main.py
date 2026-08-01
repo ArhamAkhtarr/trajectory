@@ -223,78 +223,86 @@ async def search_jobs(
     mode_val = mode if isinstance(mode, str) else None
     page_val = page if isinstance(page, int) and not isinstance(page, bool) else 1
 
-    raw_results = await asyncio.gather(
-        _safe_search(search_adzuna, query, country_val, city_val, page_val),
-        _safe_search(search_remotive, query, country_val, city_val, page_val),
-        _safe_search(search_remoteok, query, country_val, city_val, page_val),
-        _safe_search(search_arbeitnow, query, country_val, city_val, page_val),
-        _safe_search(search_jooble, query, country_val, city_val, page_val),
-        return_exceptions=True,
-    )
+    try:
+        raw_results = await asyncio.gather(
+            _safe_search(search_adzuna, query, country_val, city_val, page_val),
+            _safe_search(search_remotive, query, country_val, city_val, page_val),
+            _safe_search(search_remoteok, query, country_val, city_val, page_val),
+            _safe_search(search_arbeitnow, query, country_val, city_val, page_val),
+            _safe_search(search_jooble, query, country_val, city_val, page_val),
+            return_exceptions=True,
+        )
 
-    merged_jobs: list[dict] = []
-    for res in raw_results:
-        if isinstance(res, list):
-            merged_jobs.extend(res)
+        merged_jobs: list[dict] = []
+        for res in raw_results:
+            if isinstance(res, list):
+                merged_jobs.extend(res)
 
-    deduped_jobs = deduplicate_jobs(merged_jobs)
+        deduped_jobs = deduplicate_jobs(merged_jobs)
 
-    if query and query.strip():
-        query_filtered = [
-            j for j in deduped_jobs
-            if is_query_relevant(query, j.get("title", ""), j.get("location", ""))
-        ]
-        if query_filtered:
-            deduped_jobs = query_filtered
+        if query and query.strip():
+            query_filtered = [
+                j for j in deduped_jobs
+                if is_query_relevant(query, j.get("title", ""), j.get("location", ""))
+            ]
+            if query_filtered:
+                deduped_jobs = query_filtered
 
-    if country_val and country_val.lower() not in ("all", "global"):
-        country_filtered = [
-            j for j in deduped_jobs
-            if is_country_relevant(country_val, j.get("location", ""), j.get("remote") is True)
-        ]
-        if country_filtered:
-            deduped_jobs = country_filtered
+        if country_val and country_val.lower() not in ("all", "global"):
+            country_filtered = [
+                j for j in deduped_jobs
+                if is_country_relevant(country_val, j.get("location", ""), j.get("remote") is True)
+            ]
+            if country_filtered:
+                deduped_jobs = country_filtered
 
-    if mode_val and mode_val.strip().lower() != "all":
-        m_lower = mode_val.strip().lower()
-        filtered_jobs = []
+        if mode_val and mode_val.strip().lower() != "all":
+            m_lower = mode_val.strip().lower()
+            filtered_jobs = []
 
-        for job in deduped_jobs:
-            title = job.get("title", "")
-            location = job.get("location", "")
-            is_remote = job.get("remote") is True or is_remote_heuristic(title, location)
+            for job in deduped_jobs:
+                title = job.get("title", "")
+                location = job.get("location", "")
+                is_remote = job.get("remote") is True or is_remote_heuristic(title, location)
 
-            if m_lower == "remote":
-                if is_remote:
+                if m_lower == "remote":
+                    if is_remote:
+                        filtered_jobs.append(job)
+                elif m_lower == "onsite":
+                    if not is_remote and "hybrid" not in f"{title} {location}".lower():
+                        filtered_jobs.append(job)
+                elif m_lower == "hybrid":
+                    if "hybrid" in f"{title} {location}".lower():
+                        filtered_jobs.append(job)
+                else:
                     filtered_jobs.append(job)
-            elif m_lower == "onsite":
-                if not is_remote and "hybrid" not in f"{title} {location}".lower():
-                    filtered_jobs.append(job)
-            elif m_lower == "hybrid":
-                if "hybrid" in f"{title} {location}".lower():
-                    filtered_jobs.append(job)
-            else:
-                filtered_jobs.append(job)
 
-        if filtered_jobs:
-            deduped_jobs = filtered_jobs
+            if filtered_jobs:
+                deduped_jobs = filtered_jobs
 
-    if city_val and city_val.strip():
-        c_lower = city_val.strip().lower()
-        city_filtered = [
-            j for j in deduped_jobs
-            if c_lower in j.get("location", "").lower() or c_lower in j.get("title", "").lower()
-        ]
-        if city_filtered:
-            deduped_jobs = city_filtered
+        if city_val and city_val.strip():
+            c_lower = city_val.strip().lower()
+            city_filtered = [
+                j for j in deduped_jobs
+                if c_lower in j.get("location", "").lower() or c_lower in j.get("title", "").lower()
+            ]
+            if city_filtered:
+                deduped_jobs = city_filtered
 
-    final_jobs = sort_jobs_by_date(deduped_jobs)
-    external_links = build_deeplinks(query=query, country=country_val, city=city_val)
+        final_jobs = sort_jobs_by_date(deduped_jobs)
+        external_links = build_deeplinks(query=query, country=country_val, city=city_val)
 
-    return {
-        "jobs": final_jobs,
-        "external_links": external_links,
-    }
+        return {
+            "jobs": final_jobs,
+            "external_links": external_links,
+        }
+    except Exception as e:
+        logger.error(f"Error searching jobs: {e}")
+        external_links = build_deeplinks(query=query, country=country_val, city=city_val)
+        return {
+            "jobs": [],
+            "external_links": external_links,
+        }
 
 
 @app.post("/resume/upload")

@@ -210,6 +210,7 @@ export default function DashboardPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           file_reference_id: refId,
+          resume_text: uploadResult.text,
           user_id: user?.id || "default_user",
         }),
       });
