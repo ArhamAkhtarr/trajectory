@@ -33,14 +33,15 @@ export default function LoginPage() {
   } | null>(null);
 
   useEffect(() => {
+    const savedEmail = typeof window !== "undefined" ? localStorage.getItem("trajectory_user_email") : null;
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
+      if (session || savedEmail) {
         router.push("/dashboard");
       }
     });
   }, [router]);
 
-  // Handle Existing User Sign In: No confirmation code required if already signed up!
+  // Handle Existing User Sign In: No confirmation code required! Enters dashboard instantly.
   const handleExistingUserSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
@@ -50,63 +51,39 @@ export default function LoginPage() {
 
     try {
       const emailClean = email.trim().toLowerCase();
+      const userId = `user_${emailClean.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-      // 1. Check if user already exists in profiles database
-      const lookupRes = await fetch(`${API_BASE_URL}/user/profile/lookup`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: emailClean }),
-      });
-
-      const lookupData = await lookupRes.json();
-
-      if (lookupData.exists && lookupData.profile) {
-        // User is already signed up! Sign them in and enter dashboard automatically without sending code!
-        const profile = lookupData.profile;
-
-        // Establish user session
-        try {
-          await supabase.from("profiles").upsert({
-            id: profile.id,
-            email: profile.email,
-            full_name: profile.full_name || emailClean.split("@")[0],
-            updated_at: new Date().toISOString(),
-          });
-        } catch (e) {
-          console.warn("Local profile cache warning:", e);
-        }
-
-        // Direct sign-in: attempt session restore or magic sign-in
-        const { data: sessionData } = await supabase.auth.getSession();
-        if (sessionData.session) {
-          router.push("/dashboard");
-          return;
-        }
-
-        // Send instant session trigger
-        const { error: otpError } = await supabase.auth.signInWithOtp({
-          email: emailClean,
-          options: { shouldCreateUser: false },
-        });
-
-        if (!otpError) {
-          // Automatic seamless enter
-          router.push("/dashboard");
-          return;
-        }
-
-        router.push("/dashboard");
-      } else {
-        // User is NOT registered yet
-        setMessage({
-          type: "error",
-          text: `No account found for "${emailClean}". Please switch to the "Create Account" tab to register.`,
-        });
-        setActiveTab("sign-up");
+      // Store in localStorage for instant login session persistence
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trajectory_user_email", emailClean);
       }
+
+      // Sync user profile to backend & database
+      try {
+        await fetch(`${API_BASE_URL}/user/profile/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: userId,
+            email: emailClean,
+            full_name: emailClean.split("@")[0],
+          }),
+        });
+
+        await supabase.from("profiles").upsert({
+          id: userId,
+          email: emailClean,
+          full_name: emailClean.split("@")[0],
+          updated_at: new Date().toISOString(),
+        });
+      } catch (syncErr) {
+        console.warn("Profile sync notice:", syncErr);
+      }
+
+      // Route straight to dashboard automatically without confirmation code
+      router.push("/dashboard");
     } catch (err: unknown) {
       console.error("Sign in error:", err);
-      // Fallback: enter dashboard
       router.push("/dashboard");
     } finally {
       setLoading(false);
@@ -160,8 +137,9 @@ export default function LoginPage() {
     setMessage(null);
 
     try {
+      const emailClean = email.trim().toLowerCase();
       const { data, error } = await supabase.auth.verifyOtp({
-        email: email.trim().toLowerCase(),
+        email: emailClean,
         token: otpToken.trim(),
         type: "email",
       });
@@ -170,11 +148,15 @@ export default function LoginPage() {
 
       if (data.session) {
         const user = data.session.user;
+        if (typeof window !== "undefined") {
+          localStorage.setItem("trajectory_user_email", emailClean);
+        }
+
         try {
           await supabase.from("profiles").upsert({
             id: user.id,
             email: user.email,
-            full_name: fullName.trim() || user.user_metadata?.full_name || email.split("@")[0],
+            full_name: fullName.trim() || user.user_metadata?.full_name || emailClean.split("@")[0],
             updated_at: new Date().toISOString(),
           });
 
@@ -184,7 +166,7 @@ export default function LoginPage() {
             body: JSON.stringify({
               user_id: user.id,
               email: user.email,
-              full_name: fullName.trim() || user.user_metadata?.full_name || email.split("@")[0],
+              full_name: fullName.trim() || user.user_metadata?.full_name || emailClean.split("@")[0],
             }),
           });
         } catch (syncErr) {
@@ -250,7 +232,7 @@ export default function LoginPage() {
               Welcome to Trajectory
             </CardTitle>
             <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
-              Existing users enter email to sign in instantly. New users create an account with confirmation code.
+              Sign in with your email address to enter your dashboard instantly.
             </CardDescription>
           </CardHeader>
 
@@ -314,7 +296,7 @@ export default function LoginPage() {
                   onClick={() => setCodeSent(false)}
                   className="rounded-lg text-xs font-semibold"
                 >
-                  Sign In (Existing User)
+                  Sign In
                 </TabsTrigger>
                 <TabsTrigger
                   value="sign-up"
@@ -325,12 +307,12 @@ export default function LoginPage() {
                 </TabsTrigger>
               </TabsList>
 
-              {/* SIGN IN TAB (Existing User Instant Access - No Code Needed) */}
+              {/* SIGN IN TAB (Instant Access by Email - No Confirmation Code Required) */}
               <TabsContent value="sign-in" className="mt-4 space-y-4">
                 <form onSubmit={handleExistingUserSignIn} className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Your Registered Email Address
+                      Your Email Address
                     </label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
@@ -344,7 +326,7 @@ export default function LoginPage() {
                       />
                     </div>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                      Existing registered users enter dashboard automatically without confirmation code.
+                      Enter your email address to enter the dashboard automatically. No code required.
                     </p>
                   </div>
 
@@ -354,7 +336,7 @@ export default function LoginPage() {
                     className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
                   >
                     {loading ? (
-                      <span>Checking Account...</span>
+                      <span>Entering Dashboard...</span>
                     ) : (
                       <>
                         <span>Enter Dashboard Instantly</span>

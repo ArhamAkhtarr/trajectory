@@ -112,9 +112,14 @@ export default function DashboardPage() {
 
   // Auth Guard: Require Sign In First
   useEffect(() => {
+    const savedEmail = typeof window !== "undefined" ? localStorage.getItem("trajectory_user_email") : null;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
+        setIsGuest(false);
+      } else if (savedEmail) {
+        setUser({ id: `user_${savedEmail.replace(/[^a-zA-Z0-9]/g, "_")}`, email: savedEmail });
         setIsGuest(false);
       } else {
         router.push("/login");
@@ -127,6 +132,9 @@ export default function DashboardPage() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         setUser(session.user);
+        setIsGuest(false);
+      } else if (savedEmail) {
+        setUser({ id: `user_${savedEmail.replace(/[^a-zA-Z0-9]/g, "_")}`, email: savedEmail });
         setIsGuest(false);
       } else {
         router.push("/login");
@@ -144,6 +152,9 @@ export default function DashboardPage() {
       await fetch(`${API_BASE_URL}/user/account?user_id=${user.id}`, {
         method: "DELETE",
       });
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("trajectory_user_email");
+      }
       await supabase.auth.signOut();
       router.push("/login");
     } catch (err) {
@@ -155,6 +166,9 @@ export default function DashboardPage() {
   };
 
   const handleSignOut = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("trajectory_user_email");
+    }
     await supabase.auth.signOut();
     router.push("/login");
   };

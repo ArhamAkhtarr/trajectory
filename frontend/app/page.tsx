@@ -79,17 +79,23 @@ export default function SearchPage() {
 
   // Require Sign In First: Redirect to /login if no active session
   useEffect(() => {
+    const savedEmail = typeof window !== "undefined" ? localStorage.getItem("trajectory_user_email") : null;
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.push("/login");
-      } else {
+      if (session) {
         setUser(session.user);
+      } else if (savedEmail) {
+        setUser({ id: `user_${savedEmail.replace(/[^a-zA-Z0-9]/g, "_")}`, email: savedEmail });
+      } else {
+        router.push("/login");
       }
       setAuthLoading(false);
     });
   }, [router]);
 
   const handleSignOut = async () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("trajectory_user_email");
+    }
     await supabase.auth.signOut();
     router.push("/login");
   };
@@ -101,6 +107,9 @@ export default function SearchPage() {
       await fetch(`${API_BASE_URL}/user/account?user_id=${user.id}`, {
         method: "DELETE",
       });
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("trajectory_user_email");
+      }
       await supabase.auth.signOut();
       router.push("/login");
     } catch (err) {
