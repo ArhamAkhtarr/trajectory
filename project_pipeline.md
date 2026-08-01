@@ -1,157 +1,144 @@
-# Trajectory — Full Project Architecture & Execution Pipeline
+# 🎨 Trajectory — Architecture & Technical Execution Pipeline
 
-**Trajectory** is an AI-powered Career Intelligence & Job Matching Platform built with Next.js 16 Turbopack on the frontend, FastAPI and LangGraph agents on the backend, Supabase pgvector for database security & vector embeddings, and a multi-adapter job search engine querying live market job APIs.
+[![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.100%2B-009688.svg?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![Next.js 16](https://img.shields.io/badge/Next.js-16_Turbopack-000000.svg?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Ollama Qwen2.5 3B](https://img.shields.io/badge/Ollama-Qwen2.5_3B-FF6F00.svg?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.com)
+[![Supabase pgvector](https://img.shields.io/badge/Supabase-pgvector-3ECF8E.svg?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![Tests Passing](https://img.shields.io/badge/Pytest-37%2F37_Passed-brightgreen.svg?style=for-the-badge&logo=pytest&logoColor=white)](#-verification--test-suite)
+
+> **Trajectory** orchestrates local AI model inference, sentence transformer vector embeddings, multi-adapter job market scrapers, and PostgreSQL database storage into a high-performance career intelligence platform.
 
 ---
 
-## High-Level System Architecture Diagram
+## 📐 System Architecture Blueprint
 
 ```mermaid
 flowchart TD
-    subgraph Frontend ["Frontend (Next.js 16 App Router & TailwindCSS)"]
-        UI_Home["Home Search & Gig Portal<br/>(app/page.tsx)"]
-        UI_Auth["Supabase Auth Page<br/>(app/login/page.tsx)"]
-        UI_Dash["User Dashboard<br/>(app/dashboard/page.tsx)"]
-        Supa_Client["Supabase Web Client<br/>(lib/supabaseClient.ts)"]
+    %% Custom Styling
+    classDef feStyle fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#fff;
+    classDef beStyle fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#fff;
+    classDef aiStyle fill:#78350f,stroke:#f59e0b,stroke-width:2px,color:#fff;
+    classDef dbStyle fill:#312e81,stroke:#818cf8,stroke-width:2px,color:#fff;
+
+    subgraph FE ["🌐 FRONTEND LAYER (Next.js 16 Turbopack)"]
+        UI_Search["🔍 Search Portal<br/>(app/page.tsx)"]:::feStyle
+        UI_Auth["🔑 Auth Page<br/>(app/login/page.tsx)"]:::feStyle
+        UI_Dash["📊 Dashboard<br/>(app/dashboard/page.tsx)"]:::feStyle
     end
 
-    subgraph Backend ["Backend API & Agent Orchestration (FastAPI & LangGraph)"]
-        API["FastAPI App & Controller<br/>(main.py)"]
+    subgraph BE ["⚡ BACKEND API LAYER (FastAPI Microservice)"]
+        API["⚙️ FastAPI Controller<br/>(main.py)"]:::beStyle
         
-        subgraph Agents ["LangGraph AI Agents"]
-            Agent_Resume["Resume Analyzer Agent<br/>(agents/resume_analyzer.py)"]
-            Agent_Idea["Idea Generator Agent<br/>(agents/idea_generator.py)"]
+        subgraph AGENTS ["🤖 LOCAL AI AGENTS"]
+            Agent_Resume["📄 Resume Analyzer<br/>(agents/resume_analyzer.py)"]:::aiStyle
+            Agent_Idea["💡 Idea Generator<br/>(agents/idea_generator.py)"]:::aiStyle
         end
         
-        subgraph Services ["Core Services"]
-            Svc_Resume["Resume Extractor Service<br/>(services/resume_service.py)"]
-            Svc_Match["Job Matcher & Re-ranker<br/>(services/matching_service.py)"]
+        subgraph ENGINE ["🔎 SEARCH ADAPTER ENGINE"]
+            Adzuna["Adzuna Adapter"]:::beStyle
+            Remotive["Remotive Adapter"]:::beStyle
+            RemoteOK["RemoteOK Adapter"]:::beStyle
+            Arbeitnow["Arbeitnow Adapter"]:::beStyle
+            Jooble["Jooble Adapter"]:::beStyle
         end
-        
-        subgraph Adapters ["Multi-Source Job Engine (adapters/)"]
-            Adzuna["Adzuna Adapter (adzuna.py)"]
-            Remotive["Remotive Adapter (remotive.py)"]
-            RemoteOK["RemoteOK Adapter (remoteok.py)"]
-            Arbeitnow["Arbeitnow Adapter (arbeitnow.py)"]
-            Jooble["Jooble Adapter (jooble.py)"]
-            Utils["Filtering & Utils (utils.py)"]
+
+        subgraph VECTOR ["📐 VECTOR ENGINE"]
+            Embedder["Sentence-Transformers<br/>(all-MiniLM-L6-v2)"]:::beStyle
+            Matcher["Cosine Similarity<br/>(matching_service.py)"]:::beStyle
         end
     end
 
-    subgraph DB ["Database & Vector Persistence"]
-        Supabase_DB[("Supabase Postgres + pgvector<br/>(supabase_schema.sql)")]
+    subgraph OLLAMA ["🧠 LOCAL LLM INFERENCE ENGINE"]
+        OllamaModel["🦙 Ollama REST API<br/>Model: qwen2.5:3b"]:::aiStyle
     end
 
-    UI_Home -->|Job Search / Gig Mode| API
-    UI_Dash -->|Upload CV| Svc_Resume
-    Svc_Resume -->|Extract PDF/DOCX Text| Agent_Resume
-    Agent_Resume -->|Forced Tool Call submit_resume_analysis| Claude_LLM["Anthropic Claude API"]
-    Agent_Idea -->|Fetch Live Market Ads| Adapters
-    Agent_Idea -->|Skill Gap & Pipeline| Claude_LLM
-    Svc_Match -->|Vector Similarity & Re-rank| Claude_LLM
-    Agent_Resume -->|Store Profile Embedding| Supabase_DB
-    Adapters -->|Adzuna, Remotive, RemoteOK, Arbeitnow, Jooble| Live_APIs["Live Job APIs"]
+    subgraph DATA ["🗄️ PERSISTENCE LAYER (Supabase)"]
+        SupaDB[("PostgreSQL + pgvector<br/>(supabase_schema.sql)")]:::dbStyle
+    end
+
+    UI_Search -->|Search Query| API
+    UI_Dash -->|Upload CV File| API
+    API --> Agent_Resume
+    API --> Agent_Idea
+    API --> ENGINE
+    Agent_Resume -->|Structured JSON Prompt| OllamaModel
+    Agent_Idea -->|Market Gap Prompt| OllamaModel
+    Agent_Resume -->|Compute Profile Vector| Embedder
+    Embedder -->|Store Vector| SupaDB
+    ENGINE --> Matcher
+    Matcher -->|Re-rank Match Reasoning| OllamaModel
+    API -->|Save Profile & Resumes| SupaDB
 ```
 
 ---
 
-## Component-by-Component Pipeline Breakdown
+## 🗺️ File-by-File Component Index
 
-### 1. Frontend Web Application ([frontend/](file:///Users/m1pro/Projects/trajectory/frontend))
-Built using **Next.js 16 (Turbopack App Router)**, **TypeScript**, **TailwindCSS**, and **Shadcn/UI**.
-
-- **[app/page.tsx](file:///Users/m1pro/Projects/trajectory/frontend/app/page.tsx)**
-  - Primary landing and search portal.
-  - Multi-provider search input (query, country, city, work mode).
-  - **Gig / Freelance Mode**: Hides country dropdown (freelance is borderless) and surfaces direct deep-links to Upwork, Fiverr, Freelancer, Toptal, and Rozee.pk.
-
-- **[app/login/page.tsx](file:///Users/m1pro/Projects/trajectory/frontend/app/login/page.tsx)**
-  - Authentication page supporting Email/Password and Google OAuth via Supabase Auth.
-
-- **[app/dashboard/page.tsx](file:///Users/m1pro/Projects/trajectory/frontend/app/dashboard/page.tsx)**
-  - Core user dashboard featuring 3 interactive tabs:
-    1. **Matched Jobs Tab**: Displays personalized AI-matched jobs with % match scores, source site 2-3 sentence job description snippets, and natural language match reasoning.
-    2. **Portfolio Ideas Tab**: Displays live market skill gaps and interactive **"Start Project &rarr;"** architecture pipeline modals.
-    3. **My CV Tab**: Executive resume audit displaying highest education degree, seniority badge, summary pitch, core strengths, and resume enhancement recommendations.
-
-- **[lib/supabaseClient.ts](file:///Users/m1pro/Projects/trajectory/frontend/lib/supabaseClient.ts)**
-  - Configures the `@supabase/supabase-js` browser client connecting to Supabase Auth and database tables.
-
-- **[components/ui/](file:///Users/m1pro/Projects/trajectory/frontend/components/ui)**
-  - Reusable UI component primitives: `button.tsx`, `card.tsx`, `input.tsx`, `badge.tsx`, `tabs.tsx`, `select.tsx`.
-
----
-
-### 2. Backend API & Ingestion Layer ([backend/](file:///Users/m1pro/Projects/trajectory/backend))
-Built with **FastAPI**, **LangGraph**, **Pydantic**, and **HTTPX**.
-
-- **[main.py](file:///Users/m1pro/Projects/trajectory/backend/main.py)**
-  - Primary API server entry point configuring CORS, route controllers, and memory caches (`RESUME_CACHE`, `ANALYSIS_CACHE`).
-  - Key REST Endpoints:
-    - `GET /health` &mdash; Service health check.
-    - `GET /jobs/search` &mdash; Concurrent multi-adapter search engine query.
-    - `POST /resume/upload` &mdash; Multi-part PDF/DOCX file upload endpoint.
-    - `POST /resume/analyze` &mdash; Triggers LangGraph Resume Analyzer agent.
-    - `GET /jobs/matched` &mdash; Matches candidate profile vector against candidate jobs.
-    - `POST /ideas/generate` &mdash; Triggers LangGraph Idea Generator agent.
-
-- **[services/resume_service.py](file:///Users/m1pro/Projects/trajectory/backend/services/resume_service.py)**
-  - Extracts raw text content from uploaded files:
-    - `pdfplumber` for PDF parsing.
-    - `python-docx` for DOCX parsing.
+```
+trajectory/
+├── 📁 backend/
+│   ├── 📄 main.py                      # FastAPI REST controllers & API routes
+│   ├── 📄 requirements.txt             # Python dependencies
+│   ├── 📁 agents/
+│   │   ├── 📄 resume_analyzer.py       # Local Ollama CV parser & multi-domain audit agent
+│   │   └── 📄 idea_generator.py        # Skill gap identifier & 4-phase project builder agent
+│   ├── 📁 services/
+│   │   ├── 📄 ollama_service.py        # Local Ollama REST client & JSON code-block parser
+│   │   ├── 📄 matching_service.py      # Sentence-Transformer vector matcher & LLM re-ranker
+│   │   └── 📄 resume_service.py        # PDF/DOCX document text extraction & Supabase storage
+│   ├── 📁 adapters/
+│   │   ├── 📄 adzuna.py                # Adzuna job market API adapter
+│   │   ├── 📄 remotive.py              # Remotive remote jobs API adapter
+│   │   ├── 📄 remoteok.py              # RemoteOK jobs API adapter
+│   │   ├── 📄 arbeitnow.py             # Arbeitnow jobs API adapter
+│   │   ├── 📄 jooble.py                # Jooble job search API adapter
+│   │   └── 📄 utils.py                 # Query relevance, country filter, & dedup logic
+│   └── 📁 tests/                       # Complete 37-test pytest suite
+├── 📁 frontend/
+│   ├── 📁 app/
+│   │   ├── 📄 page.tsx                 # Search portal with Gig/Freelance mode & deep-links
+│   │   ├── 📄 login.tsx                # Instant sign-in & email confirmation code OTP flow
+│   │   └── 📄 dashboard/page.tsx       # Matched Jobs, Portfolio Ideas, & CV Audit UI
+│   └── 📁 lib/
+│       └── 📄 supabaseClient.ts        # Supabase browser auth & database client
+├── 📄 project_info.md                  # Comprehensive user guide & setup documentation
+├── 📄 project_pipeline.md              # Visual system architecture & pipeline breakdown
+├── 📄 concepts.md                      # Complete AI & technical concept guide (Basic to Advanced)
+└── 📄 README.md                        # Master repository documentation
+```
 
 ---
 
-### 3. LangGraph AI Agent Orchestration ([backend/agents/](file:///Users/m1pro/Projects/trajectory/backend/agents))
+## 🔄 End-to-End Execution Flow
 
-- **[agents/resume_analyzer.py](file:///Users/m1pro/Projects/trajectory/backend/agents/resume_analyzer.py)**
-  - State Graph workflow: `extract_skills` &rarr; `infer_role` &rarr; `embed_profile`.
-  - **Structured LLM Forced Tool Call**: Uses Anthropic's forced tool choice (`submit_resume_analysis`) to guarantee field-correct JSON output without regex code-fence parsing.
-  - **Work Experience & Multi-Domain Engine**: Evaluates Work Experience section duties, past job titles, degree background (`highest_education`), and skills across Electrical, Mechanical, Biomedical, Civil, Chemical, Data Science, and Software engineering fields.
-  - **Vector Embeddings**: Computes 384-dim semantic embedding vectors and stores them in Supabase `profile_embeddings`.
+> [!NOTE]
+> **Stage 1: Document Upload & Parsing**  
+> User uploads a resume file (`PDF` or `DOCX`). `services/resume_service.py` extracts raw text content using `pdfplumber` or `python-docx`.
 
-- **[agents/idea_generator.py](file:///Users/m1pro/Projects/trajectory/backend/agents/idea_generator.py)**
-  - State Graph workflow: `fetch_market_node` &rarr; `identify_skill_gaps` &rarr; `generate_project_ideas`.
-  - **Live Job Market Collector (`fetch_market_node`)**: Concurrently queries job search engines for the candidate's target roles to pull active live job postings.
-  - **AI Skill Gap Analysis**: Compares candidate's CV against live active job ads to identify missing competencies.
-  - **4-Phase Architecture Pipeline Generator**: Produces 4-phase step-by-step technical blueprints, key features, and file tree structures.
+> [!TIP]
+> **Stage 2: Local AI Resume Audit**  
+> `agents/resume_analyzer.py` sends the raw resume text to `services/ollama_service.py`, querying local model **`qwen2.5:3b`**. It extracts highest education, seniority, skills, tools, and a candidate pitch without cloud API fees.
 
----
+> [!IMPORTANT]
+> **Stage 3: Dense Vector Embedding & Matching**  
+> `services/matching_service.py` encodes the candidate profile using `all-MiniLM-L6-v2` into a 384-dimensional vector. It computes Cosine Similarity against live job descriptions, re-ranking the top matches with local Ollama match reasoning.
 
-### 4. Vector Matching & Search Adapters ([backend/services/](file:///Users/m1pro/Projects/trajectory/backend/services) & [backend/adapters/](file:///Users/m1pro/Projects/trajectory/backend/adapters))
-
-- **[services/matching_service.py](file:///Users/m1pro/Projects/trajectory/backend/services/matching_service.py)**
-  - **Vector Cosine Matcher**: Computes vector similarity between candidate profile vector and candidate job descriptions.
-  - **Claude LLM Re-ranker**: Re-ranks top 20 candidate jobs using Claude, producing personalized match scores and natural language reasoning (e.g. *"Directly aligns with your Bachelor of Science in Mechanical Engineering background and SolidWorks CAD expertise."*).
-
-- **Multi-Source Job Search Engine Adapters**:
-  - **[adapters/adzuna.py](file:///Users/m1pro/Projects/trajectory/backend/adapters/adzuna.py)** &mdash; Adzuna REST API adapter.
-  - **[adapters/remotive.py](file:///Users/m1pro/Projects/trajectory/backend/adapters/remotive.py)** &mdash; Remotive remote jobs API adapter.
-  - **[adapters/remoteok.py](file:///Users/m1pro/Projects/trajectory/backend/adapters/remoteok.py)** &mdash; RemoteOK jobs API adapter.
-  - **[adapters/arbeitnow.py](file:///Users/m1pro/Projects/trajectory/backend/adapters/arbeitnow.py)** &mdash; Arbeitnow job board API adapter.
-  - **[adapters/jooble.py](file:///Users/m1pro/Projects/trajectory/backend/adapters/jooble.py)** &mdash; Jooble REST API adapter.
-  - **[adapters/utils.py](file:///Users/m1pro/Projects/trajectory/backend/adapters/utils.py)** &mdash; Deduplication (`deduplicate_jobs`), strict query token matching (`is_query_relevant`), country keyword mapping (`is_country_relevant`), and HTML text cleaning (`clean_text`).
+> [!TIP]
+> **Stage 4: Market-Driven Project Blueprinting**  
+> `agents/idea_generator.py` queries live job search adapters for active candidate roles, identifies genuine missing skills, and constructs a 4-phase technical project architecture blueprint.
 
 ---
 
-### 5. Database & Security Layer ([backend/supabase_schema.sql](file:///Users/m1pro/Projects/trajectory/backend/supabase_schema.sql))
-Defines the PostgreSQL schema and Row-Level Security (RLS) policies:
-- `resumes` table &mdash; User uploaded CV metadata and storage paths.
-- `saved_searches` table &mdash; Saved search history.
-- `profile_embeddings` table &mdash; Stores `vector(384)` embeddings with HNSW indexing for similarity search.
+## 🧪 Verification & Test Suite
 
----
+The backend contains a 37-test automated test suite covering all services, agents, adapters, and search filters:
 
-### 6. Deployment & CI/CD Pipeline
-- **[frontend/vercel.json](file:///Users/m1pro/Projects/trajectory/frontend/vercel.json)** &mdash; Vercel deployment configuration for Next.js app.
-- **[backend/railway.json](file:///Users/m1pro/Projects/trajectory/backend/railway.json)** & **[backend/render.yaml](file:///Users/m1pro/Projects/trajectory/backend/render.yaml)** &mdash; Deployment manifests for FastAPI backend.
-- **[.github/workflows/ci.yml](file:///Users/m1pro/Projects/trajectory/.github/workflows/ci.yml)** &mdash; GitHub Actions automated workflow running `pytest` test suite and `next build` on every push to `main`.
+```bash
+cd backend
+.venv/bin/python -m pytest tests/
+```
 
----
-
-### 7. Automated Test Suite ([backend/tests/](file:///Users/m1pro/Projects/trajectory/backend/tests))
-- **[test_resume_analyzer.py](file:///Users/m1pro/Projects/trajectory/backend/tests/test_resume_analyzer.py)** &mdash; Unit tests for multi-domain CV extraction (Electrical, Mechanical, Biomedical, Civil, Software) and tool_use blocks.
-- **[test_idea_generator.py](file:///Users/m1pro/Projects/trajectory/backend/tests/test_idea_generator.py)** &mdash; Unit tests for live job market idea generator and skill gap graph.
-- **[test_job_matching.py](file:///Users/m1pro/Projects/trajectory/backend/tests/test_job_matching.py)** &mdash; Unit tests for cosine vector similarity and Claude re-ranking.
-- **[test_all_adapters.py](file:///Users/m1pro/Projects/trajectory/backend/tests/test_all_adapters.py)** & **[test_adzuna.py](file:///Users/m1pro/Projects/trajectory/backend/tests/test_adzuna.py)** &mdash; Unit tests for job search engine adapters.
-- **[test_resume_upload.py](file:///Users/m1pro/Projects/trajectory/backend/tests/test_resume_upload.py)** &mdash; Unit tests for PDF/DOCX file upload handlers.
+```
+======================== 37 passed in 5.77s ========================
+```
