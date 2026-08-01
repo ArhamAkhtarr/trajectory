@@ -1,4 +1,5 @@
-# Trajectory Monorepo
+# Trajectory
+
 
 `trajectory` is a monorepo containing a **Next.js 14** frontend and a **FastAPI** backend.
 
