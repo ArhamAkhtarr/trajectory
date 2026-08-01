@@ -336,8 +336,8 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* Header Banner */}
       <header className="border-b border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 sm:py-0 sm:h-16 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+          <div className="flex items-center space-x-6 justify-between w-full sm:w-auto">
             <Link href="/" className="flex items-center space-x-3">
               <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
                 <Zap className="w-5 h-5 fill-current" />
@@ -347,23 +347,13 @@ export default function DashboardPage() {
               </span>
             </Link>
 
-            <nav className="hidden md:flex items-center space-x-4 text-xs font-semibold text-slate-600 dark:text-slate-400">
-              <Link
-                href="/"
-                className="hover:text-slate-900 dark:hover:text-slate-100 transition-colors"
-              >
-                Job Search
-              </Link>
-              <Link
-                href="/dashboard"
-                className="text-indigo-600 dark:text-indigo-400 font-bold"
-              >
-                Resume Analyzer
-              </Link>
-            </nav>
+            <span className="text-xs text-slate-500 dark:text-slate-400 sm:hidden flex items-center space-x-1">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="truncate max-w-[120px]">{user?.email}</span>
+            </span>
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center justify-center space-x-2 sm:space-x-4 w-full sm:w-auto">
             <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline-flex items-center space-x-1.5">
               <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
               <span>{user?.email}</span>
@@ -373,7 +363,7 @@ export default function DashboardPage() {
                 onClick={() => router.push("/login")}
                 variant="default"
                 size="sm"
-                className="rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white"
+                className="rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white h-8"
               >
                 <span>Sign In</span>
               </Button>
@@ -383,9 +373,9 @@ export default function DashboardPage() {
                   onClick={handleSignOut}
                   variant="outline"
                   size="sm"
-                  className="rounded-lg text-xs font-semibold"
+                  className="rounded-lg text-xs font-semibold px-2.5 py-1 h-8"
                 >
-                  <LogOut className="w-3.5 h-3.5 mr-1.5" />
+                  <LogOut className="w-3.5 h-3.5 mr-1" />
                   <span>Sign Out</span>
                 </Button>
 
@@ -393,10 +383,10 @@ export default function DashboardPage() {
                   onClick={() => setShowDeleteModal(true)}
                   variant="ghost"
                   size="sm"
-                  className="rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  className="rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2.5 py-1 h-8"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1" />
-                  <span>Delete Account</span>
+                  <span>Delete</span>
                 </Button>
               </div>
             )}
@@ -439,29 +429,29 @@ export default function DashboardPage() {
       )}
 
       {/* Main Dashboard Container */}
-      <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">
+      <main className="flex-1 max-w-6xl mx-auto w-full px-4 sm:px-6 py-6 sm:py-10">
         <Tabs defaultValue="my-cv" className="w-full space-y-8">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200/80 dark:border-slate-800 pb-4">
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
                 Career Command Center
               </h1>
-              <p className="text-sm text-slate-500 dark:text-slate-400">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                 Analyze your CV, match vector-embedded roles, and generate skill-bridging projects.
               </p>
             </div>
 
             {/* Navigation Tabs */}
-            <TabsList className="bg-slate-200/60 dark:bg-slate-800/60 p-1 rounded-xl">
-              <TabsTrigger value="matched-jobs" className="rounded-lg text-xs font-semibold">
+            <TabsList className="bg-slate-200/60 dark:bg-slate-800/60 p-1 rounded-xl w-full sm:w-auto overflow-x-auto flex">
+              <TabsTrigger value="matched-jobs" className="rounded-lg text-xs font-semibold shrink-0">
                 <Briefcase className="w-3.5 h-3.5 mr-1.5" />
                 <span>Matched Jobs</span>
               </TabsTrigger>
-              <TabsTrigger value="portfolio-ideas" className="rounded-lg text-xs font-semibold">
+              <TabsTrigger value="portfolio-ideas" className="rounded-lg text-xs font-semibold shrink-0">
                 <Lightbulb className="w-3.5 h-3.5 mr-1.5" />
                 <span>Portfolio Ideas</span>
               </TabsTrigger>
-              <TabsTrigger value="my-cv" className="rounded-lg text-xs font-semibold">
+              <TabsTrigger value="my-cv" className="rounded-lg text-xs font-semibold shrink-0">
                 <FileText className="w-3.5 h-3.5 mr-1.5" />
                 <span>My CV</span>
               </TabsTrigger>

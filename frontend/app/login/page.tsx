@@ -117,7 +117,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center px-6 py-12">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center px-4 py-8 sm:px-6 sm:py-12">
       <div className="w-full max-w-md">
         {/* Brand Logo */}
         <div className="flex items-center justify-center space-x-3 mb-8">

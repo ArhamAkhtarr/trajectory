@@ -206,25 +206,33 @@ export default function SearchPage() {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* Header Banner */}
       <header className="border-b border-slate-200/80 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-              <Zap className="w-5 h-5 fill-current" />
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 sm:py-0 sm:h-16 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-0">
+          <div className="flex items-center space-x-3 w-full sm:w-auto justify-between sm:justify-start">
+            <div className="flex items-center space-x-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
+                <Zap className="w-5 h-5 fill-current" />
+              </div>
+              <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent">
+                Trajectory
+              </span>
             </div>
-            <span className="font-bold text-xl tracking-tight bg-gradient-to-r from-indigo-600 to-indigo-500 bg-clip-text text-transparent">
-              Trajectory
+
+            <span className="text-xs text-slate-500 dark:text-slate-400 sm:hidden flex items-center space-x-1">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="truncate max-w-[120px]">{user?.email}</span>
             </span>
           </div>
-          <nav className="flex items-center space-x-6 text-sm font-medium text-slate-600 dark:text-slate-400">
+
+          <nav className="flex items-center justify-center flex-wrap gap-2 sm:gap-4 text-xs sm:text-sm font-medium text-slate-600 dark:text-slate-400 w-full sm:w-auto">
             <Link
               href="/"
-              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline"
+              className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline px-2 py-1"
             >
               Job Search
             </Link>
             <Link
               href="/dashboard"
-              className="hover:text-slate-900 dark:hover:text-slate-100 transition-colors hover:underline"
+              className="hover:text-slate-900 dark:hover:text-slate-100 transition-colors hover:underline px-2 py-1"
             >
               Resume Analyzer
             </Link>
@@ -238,7 +246,7 @@ export default function SearchPage() {
               onClick={handleSignOut}
               variant="outline"
               size="sm"
-              className="rounded-lg text-xs font-semibold"
+              className="rounded-lg text-xs font-semibold px-2.5 py-1 h-8"
             >
               <LogOut className="w-3.5 h-3.5 mr-1" />
               <span>Sign Out</span>
@@ -248,10 +256,10 @@ export default function SearchPage() {
               onClick={() => setShowDeleteModal(true)}
               variant="ghost"
               size="sm"
-              className="rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              className="rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 px-2.5 py-1 h-8"
             >
               <Trash2 className="w-3.5 h-3.5 mr-1" />
-              <span>Delete Account</span>
+              <span>Delete</span>
             </Button>
           </nav>
         </div>
