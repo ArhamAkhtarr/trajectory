@@ -40,7 +40,43 @@ async def query_ollama(
     json_format: bool = False,
     timeout: float = 90.0,
 ) -> str:
-    """Queries local Ollama instance running Qwen2.5 3B."""
+    """Queries Groq Cloud API (if GROQ_API_KEY is present) or local Ollama instance running Qwen2.5 3B."""
+    groq_api_key = os.getenv("GROQ_API_KEY")
+
+    if groq_api_key and groq_api_key.strip():
+        groq_model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+        url = "https://api.groq.com/openai/v1/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {groq_api_key.strip()}",
+            "Content-Type": "application/json",
+        }
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
+
+        payload = {
+            "model": groq_model,
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if json_format:
+            payload["response_format"] = {"type": "json_object"}
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                res = await client.post(url, json=payload, headers=headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    content = data["choices"][0]["message"]["content"]
+                    if content and content.strip():
+                        return content
+                else:
+                    logger.error(f"Groq API returned status {res.status_code}: {res.text}")
+        except Exception as e:
+            logger.error(f"Failed to query Groq API: {e}")
+
+    # Fallback to local Ollama instance
     url = f"{OLLAMA_HOST}/api/generate"
     payload = {
         "model": OLLAMA_MODEL,

@@ -115,17 +115,17 @@ Return ONLY a valid JSON object matching this EXACT schema:
 
 
 def _empty_analysis(error_message: str) -> dict:
-    logger.error(f"Resume analysis failed, returning an empty result: {error_message}")
+    logger.error(f"Resume analysis failed, returning fallback result: {error_message}")
     return {
         "highest_education": "Unable to determine (analysis failed)",
         "skills": [],
         "tools": [],
         "seniority_level": "Unable to determine (analysis failed)",
         "suggested_roles": [],
-        "summary_pitch": f"Automated analysis could not be completed: {error_message}",
+        "summary_pitch": f"Automated analysis could not be completed: {error_message}. If deployed on Render, please add GROQ_API_KEY to your Render environment variables.",
         "key_strengths": [],
         "top_recommendations": [
-            "Analysis failed - please check if Ollama service is running locally on port 11434."
+            "Please ensure GROQ_API_KEY is configured in your Render environment variables or local Ollama is running on port 11434."
         ],
         "error": error_message,
     }
