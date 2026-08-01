@@ -1,16 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   Briefcase,
   Building2,
   ExternalLink,
   Filter,
   Globe,
+  LogOut,
   MapPin,
   Search,
   Sparkles,
+  Trash2,
+  UserCheck,
   Zap,
 } from "lucide-react";
 
@@ -32,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { COUNTRIES } from "@/lib/countries";
+import { supabase } from "@/lib/supabaseClient";
 
 interface Job {
   title: string;
@@ -53,6 +59,12 @@ const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export default function SearchPage() {
+  const router = useRouter();
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("us");
   const [city, setCity] = useState("");
@@ -64,6 +76,40 @@ export default function SearchPage() {
   const [externalLinks, setExternalLinks] = useState<ExternalLinkItem[]>([]);
   const [hasSearched, setHasSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Require Sign In First: Redirect to /login if no active session
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        router.push("/login");
+      } else {
+        setUser(session.user);
+      }
+      setAuthLoading(false);
+    });
+  }, [router]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.push("/login");
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    setDeletingAccount(true);
+    try {
+      await fetch(`${API_BASE_URL}/user/account?user_id=${user.id}`, {
+        method: "DELETE",
+      });
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (err) {
+      console.error("Delete account error:", err);
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteModal(false);
+    }
+  };
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -136,6 +182,15 @@ export default function SearchPage() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center">
+        <div className="w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-medium text-slate-500">Redirecting to Sign In...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans">
       {/* Header Banner */}
@@ -162,9 +217,68 @@ export default function SearchPage() {
             >
               Resume Analyzer
             </Link>
+
+            <span className="text-xs text-slate-500 dark:text-slate-400 hidden sm:inline-flex items-center space-x-1">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-500" />
+              <span>{user?.email}</span>
+            </span>
+
+            <Button
+              onClick={handleSignOut}
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs font-semibold"
+            >
+              <LogOut className="w-3.5 h-3.5 mr-1" />
+              <span>Sign Out</span>
+            </Button>
+
+            <Button
+              onClick={() => setShowDeleteModal(true)}
+              variant="ghost"
+              size="sm"
+              className="rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+            >
+              <Trash2 className="w-3.5 h-3.5 mr-1" />
+              <span>Delete Account</span>
+            </Button>
           </nav>
         </div>
       </header>
+
+      {/* Delete Account Modal Confirmation */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <Card className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                Delete Account Permanently?
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              This will permanently delete your user profile (<strong className="text-slate-800 dark:text-slate-200">{user?.email}</strong>), stored resume files, search history, and analysis records. This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deletingAccount}
+                className="rounded-xl text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {deletingAccount ? "Deleting Account..." : "Yes, Delete My Account"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Main Container */}
       <main className="flex-1 max-w-4xl mx-auto w-full px-6 py-12 flex flex-col items-center">

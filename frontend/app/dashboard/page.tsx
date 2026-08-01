@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   Award,
   BookOpen,
   Briefcase,
@@ -20,6 +21,7 @@ import {
   RefreshCw,
   Search,
   Sparkles,
+  Trash2,
   Upload,
   UserCheck,
   Zap,
@@ -105,15 +107,17 @@ export default function DashboardPage() {
   const [projectIdeas, setProjectIdeas] = useState<ProjectIdea[]>([]);
   const [ideasError, setIdeasError] = useState<string | null>(null);
 
-  // Auth Guard & Guest Fallback
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+
+  // Auth Guard: Require Sign In First
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         setUser(session.user);
         setIsGuest(false);
       } else {
-        setUser({ id: "guest_user", email: "Guest Mode" });
-        setIsGuest(true);
+        router.push("/login");
       }
       setAuthLoading(false);
     });
@@ -125,14 +129,30 @@ export default function DashboardPage() {
         setUser(session.user);
         setIsGuest(false);
       } else {
-        setUser({ id: "guest_user", email: "Guest Mode" });
-        setIsGuest(true);
+        router.push("/login");
       }
       setAuthLoading(false);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [router]);
+
+  const handleDeleteAccount = async () => {
+    if (!user || user.id === "guest_user") return;
+    setDeletingAccount(true);
+    try {
+      await fetch(`${API_BASE_URL}/user/account?user_id=${user.id}`, {
+        method: "DELETE",
+      });
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (err) {
+      console.error("Error deleting account:", err);
+    } finally {
+      setDeletingAccount(false);
+      setShowDeleteModal(false);
+    }
+  };
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -342,19 +362,65 @@ export default function DashboardPage() {
                 <span>Sign In</span>
               </Button>
             ) : (
-              <Button
-                onClick={handleSignOut}
-                variant="outline"
-                size="sm"
-                className="rounded-lg text-xs font-semibold"
-              >
-                <LogOut className="w-3.5 h-3.5 mr-1.5" />
-                <span>Sign Out</span>
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button
+                  onClick={handleSignOut}
+                  variant="outline"
+                  size="sm"
+                  className="rounded-lg text-xs font-semibold"
+                >
+                  <LogOut className="w-3.5 h-3.5 mr-1.5" />
+                  <span>Sign Out</span>
+                </Button>
+
+                <Button
+                  onClick={() => setShowDeleteModal(true)}
+                  variant="ghost"
+                  size="sm"
+                  className="rounded-lg text-xs font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />
+                  <span>Delete Account</span>
+                </Button>
+              </div>
             )}
           </div>
         </div>
       </header>
+
+      {/* Delete Account Modal Confirmation */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <Card className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl p-6 space-y-4">
+            <div className="flex items-center space-x-3 text-rose-600">
+              <AlertTriangle className="w-6 h-6 shrink-0" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+                Delete Account Permanently?
+              </h3>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+              This will permanently delete your user profile (<strong className="text-slate-800 dark:text-slate-200">{user?.email}</strong>), stored resume files, search history, and analysis records. This action cannot be undone.
+            </p>
+            <div className="flex items-center justify-end space-x-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deletingAccount}
+                className="rounded-xl text-xs"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleDeleteAccount}
+                disabled={deletingAccount}
+                className="rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white"
+              >
+                {deletingAccount ? "Deleting Account..." : "Yes, Delete My Account"}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Main Dashboard Container */}
       <main className="flex-1 max-w-6xl mx-auto w-full px-6 py-10">

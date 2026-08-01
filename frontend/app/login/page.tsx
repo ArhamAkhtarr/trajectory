@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, KeyRound, Mail, Zap } from "lucide-react";
+import { ArrowRight, CheckCircle2, KeyRound, Mail, User, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,10 +16,15 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
 export default function LoginPage() {
   const router = useRouter();
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [otpToken, setOtpToken] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -34,55 +39,83 @@ export default function LoginPage() {
     });
   }, [router]);
 
-  const handleSignIn = async (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!email.trim()) return;
+
     setLoading(true);
     setMessage(null);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          data: { full_name: fullName.trim() || undefined },
+          shouldCreateUser: true,
+        },
       });
 
       if (error) throw error;
 
-      if (data.session) {
-        router.push("/dashboard");
-      }
+      setCodeSent(true);
+      setMessage({
+        type: "success",
+        text: `A 6-digit confirmation code has been sent to ${email}. Please check your inbox or spam folder.`,
+      });
     } catch (err: unknown) {
       setMessage({
         type: "error",
         text:
           err instanceof Error
             ? err.message
-            : "Sign in failed. Please check your credentials.",
+            : "Could not send confirmation code. Please check your email address.",
       });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!otpToken.trim() || !email.trim()) return;
+
     setLoading(true);
     setMessage(null);
 
     try {
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: email.trim(),
+        token: otpToken.trim(),
+        type: "email",
       });
 
       if (error) throw error;
 
       if (data.session) {
+        const user = data.session.user;
+        // Sync profile to database
+        try {
+          await supabase.from("profiles").upsert({
+            id: user.id,
+            email: user.email,
+            full_name: fullName.trim() || user.user_metadata?.full_name || email.split("@")[0],
+            updated_at: new Date().toISOString(),
+          });
+
+          await fetch(`${API_BASE_URL}/user/profile/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              user_id: user.id,
+              email: user.email,
+              full_name: fullName.trim() || user.user_metadata?.full_name || email.split("@")[0],
+            }),
+          });
+        } catch (syncErr) {
+          console.error("Profile sync warning:", syncErr);
+        }
+
         router.push("/dashboard");
-      } else {
-        setMessage({
-          type: "success",
-          text: "Registration successful! Please check your email to confirm your account.",
-        });
       }
     } catch (err: unknown) {
       setMessage({
@@ -90,7 +123,7 @@ export default function LoginPage() {
         text:
           err instanceof Error
             ? err.message
-            : "Sign up failed. Please try again.",
+            : "Invalid or expired confirmation code. Please try again.",
       });
     } finally {
       setLoading(false);
@@ -138,10 +171,10 @@ export default function LoginPage() {
         <Card className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl rounded-2xl overflow-hidden">
           <CardHeader className="text-center pb-2">
             <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Welcome Back
+              Sign In First to Access Trajectory
             </CardTitle>
             <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
-              Sign in with Google OAuth or email to access your dashboard.
+              Receive a secure confirmation code on your email to sign in or create an account.
             </CardDescription>
           </CardHeader>
 
@@ -149,12 +182,12 @@ export default function LoginPage() {
             {/* Google OAuth Button */}
             <Button
               type="button"
+              variant="outline"
               onClick={handleGoogleLogin}
               disabled={loading}
-              variant="outline"
-              className="w-full h-11 rounded-xl border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center justify-center space-x-2"
+              className="w-full py-5 rounded-xl border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium flex items-center justify-center space-x-3 text-slate-700 dark:text-slate-200"
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -175,135 +208,220 @@ export default function LoginPage() {
               <span>Continue with Google</span>
             </Button>
 
-            {/* Divider */}
             <div className="relative flex items-center justify-center">
               <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
-              <span className="bg-white dark:bg-slate-900 px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider absolute">
-                Or with Email
+              <span className="bg-white dark:bg-slate-900 px-3 text-xs text-slate-400 uppercase font-medium absolute">
+                Or Email Confirmation Code
               </span>
             </div>
 
+            {/* Success or Error Message Alert */}
             {message && (
               <div
-                className={`p-3 rounded-xl text-xs font-medium text-center border ${
-                  message.type === "error"
-                    ? "bg-rose-500/10 text-rose-600 border-rose-500/20"
-                    : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                className={`p-4 rounded-xl text-sm leading-relaxed flex items-start space-x-2 ${
+                  message.type === "success"
+                    ? "bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                    : "bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400"
                 }`}
               >
-                {message.text}
+                {message.type === "success" ? (
+                  <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" />
+                ) : null}
+                <span>{message.text}</span>
               </div>
             )}
 
-            <Tabs defaultValue="signin" className="w-full">
-              <TabsList className="grid grid-cols-2 w-full mb-6 rounded-xl bg-slate-100 dark:bg-slate-800/60 p-1">
-                <TabsTrigger value="signin" className="rounded-lg text-xs font-semibold">
+            <Tabs defaultValue="sign-in" className="w-full">
+              <TabsList className="grid w-full grid-cols-2 rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
+                <TabsTrigger
+                  value="sign-in"
+                  onClick={() => setCodeSent(false)}
+                  className="rounded-lg text-xs font-semibold"
+                >
                   Sign In
                 </TabsTrigger>
-                <TabsTrigger value="signup" className="rounded-lg text-xs font-semibold">
+                <TabsTrigger
+                  value="sign-up"
+                  onClick={() => setCodeSent(false)}
+                  className="rounded-lg text-xs font-semibold"
+                >
                   Create Account
                 </TabsTrigger>
               </TabsList>
 
-              {/* Sign In Form */}
-              <TabsContent value="signin">
-                <form onSubmit={handleSignIn} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center space-x-1">
-                      <Mail className="w-3.5 h-3.5" />
-                      <span>Email Address</span>
-                    </label>
-                    <Input
-                      type="email"
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="h-11 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center space-x-1">
-                      <KeyRound className="w-3.5 h-3.5" />
-                      <span>Password</span>
-                    </label>
-                    <Input
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="h-11 rounded-xl"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md shadow-indigo-500/20 transition-all mt-2"
-                  >
-                    {loading ? (
-                      <span>Signing in...</span>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <span>Sign In</span>
-                        <ArrowRight className="w-4 h-4" />
+              {/* SIGN IN TAB */}
+              <TabsContent value="sign-in" className="mt-4 space-y-4">
+                {!codeSent ? (
+                  <form onSubmit={handleSendOtp} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Email Address
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                        <Input
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          className="pl-10 rounded-xl"
+                        />
                       </div>
-                    )}
-                  </Button>
-                </form>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading || !email.trim()}
+                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
+                    >
+                      {loading ? (
+                        <span>Sending Code...</span>
+                      ) : (
+                        <>
+                          <span>Send Confirmation Code</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        6-Digit Confirmation Code
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                        <Input
+                          type="text"
+                          placeholder="123456"
+                          value={otpToken}
+                          onChange={(e) => setOtpToken(e.target.value)}
+                          required
+                          maxLength={6}
+                          className="pl-10 tracking-widest text-center text-lg font-mono rounded-xl"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                        Enter the code sent to <strong className="text-slate-800 dark:text-slate-200">{email}</strong>
+                      </p>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading || !otpToken.trim()}
+                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                    >
+                      {loading ? <span>Verifying...</span> : <span>Verify & Sign In</span>}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setCodeSent(false)}
+                      className="w-full text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    >
+                      Use a different email address
+                    </Button>
+                  </form>
+                )}
               </TabsContent>
 
-              {/* Sign Up Form */}
-              <TabsContent value="signup">
-                <form onSubmit={handleSignUp} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center space-x-1">
-                      <Mail className="w-3.5 h-3.5" />
-                      <span>Email Address</span>
-                    </label>
-                    <Input
-                      type="email"
-                      placeholder="name@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="h-11 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-400 flex items-center space-x-1">
-                      <KeyRound className="w-3.5 h-3.5" />
-                      <span>Password</span>
-                    </label>
-                    <Input
-                      type="password"
-                      placeholder="At least 6 characters"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      className="h-11 rounded-xl"
-                    />
-                  </div>
-
-                  <Button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full h-11 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-md shadow-indigo-500/20 transition-all mt-2"
-                  >
-                    {loading ? (
-                      <span>Creating Account...</span>
-                    ) : (
-                      <div className="flex items-center space-x-2">
-                        <span>Create Account</span>
-                        <ArrowRight className="w-4 h-4" />
+              {/* CREATE ACCOUNT TAB */}
+              <TabsContent value="sign-up" className="mt-4 space-y-4">
+                {!codeSent ? (
+                  <form onSubmit={handleSendOtp} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Full Name
+                      </label>
+                      <div className="relative">
+                        <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                        <Input
+                          type="text"
+                          placeholder="John Doe"
+                          value={fullName}
+                          onChange={(e) => setFullName(e.target.value)}
+                          required
+                          className="pl-10 rounded-xl"
+                        />
                       </div>
-                    )}
-                  </Button>
-                </form>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Email Address
+                      </label>
+                      <div className="relative">
+                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                        <Input
+                          type="email"
+                          placeholder="you@example.com"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          className="pl-10 rounded-xl"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading || !email.trim() || !fullName.trim()}
+                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
+                    >
+                      {loading ? (
+                        <span>Sending Confirmation Code...</span>
+                      ) : (
+                        <>
+                          <span>Create Account & Send Code</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        6-Digit Confirmation Code
+                      </label>
+                      <div className="relative">
+                        <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                        <Input
+                          type="text"
+                          placeholder="123456"
+                          value={otpToken}
+                          onChange={(e) => setOtpToken(e.target.value)}
+                          required
+                          maxLength={6}
+                          className="pl-10 tracking-widest text-center text-lg font-mono rounded-xl"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                        Enter the code sent to <strong className="text-slate-800 dark:text-slate-200">{email}</strong>
+                      </p>
+                    </div>
+
+                    <Button
+                      type="submit"
+                      disabled={loading || !otpToken.trim()}
+                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                    >
+                      {loading ? <span>Completing Registration...</span> : <span>Verify & Complete Registration</span>}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setCodeSent(false)}
+                      className="w-full text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    >
+                      Change email or name
+                    </Button>
+                  </form>
+                )}
               </TabsContent>
             </Tabs>
           </CardContent>

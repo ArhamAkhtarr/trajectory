@@ -1,9 +1,11 @@
 import asyncio
 import logging
+import os
 import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 from pydantic import BaseModel
 
 from adapters import (
@@ -65,6 +67,47 @@ class IdeaGenerateRequest(BaseModel):
     target_roles: list[str] | None = None
 
 
+class ProfileSyncRequest(BaseModel):
+    user_id: str
+    email: str
+    full_name: str | None = None
+    cv_summary: str | None = None
+
+
+async def _sync_supabase_profile(user_id: str, email: str, full_name: str | None = None, cv_summary: str | None = None):
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+    if not supabase_url or not supabase_key or user_id == "default_user":
+        return
+
+    table_url = f"{supabase_url.rstrip('/')}/rest/v1/profiles"
+    headers = {
+        "Authorization": f"Bearer {supabase_key}",
+        "apikey": supabase_key,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    }
+    payload: dict = {
+        "id": user_id,
+        "email": email,
+        "updated_at": "now()",
+    }
+    if full_name:
+        payload["full_name"] = full_name
+    if cv_summary:
+        payload["cv_summary"] = cv_summary
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(table_url, json=payload, headers=headers)
+            if res.status_code in (200, 201):
+                logger.info(f"Successfully synced profile for user {user_id}")
+            else:
+                logger.warning(f"Profile sync status {res.status_code}: {res.text}")
+    except Exception as e:
+        logger.error(f"Error syncing profile to Supabase: {e}")
+
+
 async def _safe_search(adapter_fn, query: str, country: str | None, city: str | None, page: int) -> list[dict]:
     try:
         return await adapter_fn(query=query, country=country, city=city, page=page)
@@ -76,6 +119,61 @@ async def _safe_search(adapter_fn, query: str, country: str | None, city: str | 
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
+
+
+@app.post("/user/profile/sync")
+async def sync_user_profile(req: ProfileSyncRequest):
+    await _sync_supabase_profile(
+        user_id=req.user_id,
+        email=req.email,
+        full_name=req.full_name,
+        cv_summary=req.cv_summary,
+    )
+    return {"status": "success", "user_id": req.user_id}
+
+
+@app.delete("/user/account")
+async def delete_user_account(user_id: str = Query(..., description="User ID to delete")):
+    if not user_id or user_id == "default_user":
+        raise HTTPException(status_code=400, detail="Invalid user_id provided.")
+
+    # 1. Clear memory caches
+    to_delete_resumes = [ref for ref, c in RESUME_CACHE.items() if c.get("user_id") == user_id]
+    for ref in to_delete_resumes:
+        RESUME_CACHE.pop(ref, None)
+        ANALYSIS_CACHE.pop(ref, None)
+
+    # 2. Delete database records in Supabase
+    supabase_url = os.getenv("SUPABASE_URL")
+    supabase_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_PUBLISHABLE_KEY")
+
+    if supabase_url and supabase_key:
+        headers = {
+            "Authorization": f"Bearer {supabase_key}",
+            "apikey": supabase_key,
+            "Content-Type": "application/json",
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            for table in ["profiles", "resumes", "profile_embeddings", "saved_searches"]:
+                del_url = f"{supabase_url.rstrip('/')}/rest/v1/{table}?id=eq.{user_id}" if table == "profiles" else f"{supabase_url.rstrip('/')}/rest/v1/{table}?user_id=eq.{user_id}"
+                try:
+                    await client.delete(del_url, headers=headers)
+                except Exception as ex:
+                    logger.error(f"Error deleting from table {table}: {ex}")
+
+            secret_key = os.getenv("SUPABASE_SECRET_KEY")
+            if secret_key:
+                admin_headers = {
+                    "Authorization": f"Bearer {secret_key}",
+                    "apikey": secret_key,
+                }
+                admin_url = f"{supabase_url.rstrip('/')}/auth/v1/admin/users/{user_id}"
+                try:
+                    await client.delete(admin_url, headers=admin_headers)
+                except Exception as ex:
+                    logger.error(f"Error deleting user from Supabase Auth admin: {ex}")
+
+    return {"status": "success", "message": f"Account {user_id} and all associated data deleted cleanly."}
 
 
 @app.get("/jobs/search")
@@ -109,7 +207,6 @@ async def search_jobs(
 
     deduped_jobs = deduplicate_jobs(merged_jobs)
 
-    # 1. Query relevance filter (discard completely unrelated titles)
     if query and query.strip():
         query_filtered = [
             j for j in deduped_jobs
@@ -118,7 +215,6 @@ async def search_jobs(
         if query_filtered:
             deduped_jobs = query_filtered
 
-    # 2. Country relevance filter
     if country_val and country_val.lower() not in ("all", "global"):
         country_filtered = [
             j for j in deduped_jobs
@@ -127,7 +223,6 @@ async def search_jobs(
         if country_filtered:
             deduped_jobs = country_filtered
 
-    # 3. Work Mode filter (remote / onsite / hybrid)
     if mode_val and mode_val.strip().lower() != "all":
         m_lower = mode_val.strip().lower()
         filtered_jobs = []
@@ -152,7 +247,6 @@ async def search_jobs(
         if filtered_jobs:
             deduped_jobs = filtered_jobs
 
-    # 4. City filter
     if city_val and city_val.strip():
         c_lower = city_val.strip().lower()
         city_filtered = [
@@ -228,6 +322,11 @@ async def analyze_resume(request: ResumeAnalyzeRequest):
     )
 
     ANALYSIS_CACHE[ref_id] = result
+
+    # Sync summary_pitch into Supabase profiles database table
+    summary_pitch = result.get("summary_pitch", "")
+    if user_id and user_id != "default_user" and summary_pitch:
+        await _sync_supabase_profile(user_id=user_id, email="", cv_summary=summary_pitch)
 
     return result
 
