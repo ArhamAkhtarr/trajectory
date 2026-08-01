@@ -154,6 +154,7 @@ export default function DashboardPage() {
       });
       if (typeof window !== "undefined") {
         localStorage.removeItem("trajectory_user_email");
+        localStorage.removeItem("trajectory_user_name");
       }
       await supabase.auth.signOut();
       router.push("/login");
@@ -168,6 +169,7 @@ export default function DashboardPage() {
   const handleSignOut = async () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("trajectory_user_email");
+      localStorage.removeItem("trajectory_user_name");
     }
     await supabase.auth.signOut();
     router.push("/login");

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CheckCircle2, KeyRound, Mail, User, Zap } from "lucide-react";
+import { ArrowRight, CheckCircle2, Mail, User, Zap } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,6 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/lib/supabaseClient";
 
 const API_BASE_URL =
@@ -21,11 +20,8 @@ const API_BASE_URL =
 
 export default function LoginPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState("sign-in");
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [otpToken, setOtpToken] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -33,7 +29,10 @@ export default function LoginPage() {
   } | null>(null);
 
   useEffect(() => {
-    const savedEmail = typeof window !== "undefined" ? localStorage.getItem("trajectory_user_email") : null;
+    const savedEmail =
+      typeof window !== "undefined"
+        ? localStorage.getItem("trajectory_user_email")
+        : null;
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session || savedEmail) {
         router.push("/dashboard");
@@ -41,8 +40,8 @@ export default function LoginPage() {
     });
   }, [router]);
 
-  // Handle Existing User Sign In: No confirmation code required! Enters dashboard instantly.
-  const handleExistingUserSignIn = async (e: React.FormEvent) => {
+  // Simple Account Access: Store user email & name in DB and enter dashboard directly (No code sending!)
+  const handleAccountAccess = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
 
@@ -51,14 +50,16 @@ export default function LoginPage() {
 
     try {
       const emailClean = email.trim().toLowerCase();
+      const nameClean = fullName.trim() || emailClean.split("@")[0];
       const userId = `user_${emailClean.replace(/[^a-zA-Z0-9]/g, "_")}`;
 
-      // Store in localStorage for instant login session persistence
+      // 1. Store user session in localStorage for immediate access
       if (typeof window !== "undefined") {
         localStorage.setItem("trajectory_user_email", emailClean);
+        localStorage.setItem("trajectory_user_name", nameClean);
       }
 
-      // Sync user profile to backend & database
+      // 2. Persist user email & full name in Supabase profiles database table
       try {
         await fetch(`${API_BASE_URL}/user/profile/sync`, {
           method: "POST",
@@ -66,123 +67,25 @@ export default function LoginPage() {
           body: JSON.stringify({
             user_id: userId,
             email: emailClean,
-            full_name: emailClean.split("@")[0],
+            full_name: nameClean,
           }),
         });
 
         await supabase.from("profiles").upsert({
           id: userId,
           email: emailClean,
-          full_name: emailClean.split("@")[0],
+          full_name: nameClean,
           updated_at: new Date().toISOString(),
         });
       } catch (syncErr) {
-        console.warn("Profile sync notice:", syncErr);
+        console.warn("Profile database sync notice:", syncErr);
       }
 
-      // Route straight to dashboard automatically without confirmation code
+      // 3. Directly grant access and enter dashboard immediately (Zero codes sent!)
       router.push("/dashboard");
     } catch (err: unknown) {
-      console.error("Sign in error:", err);
+      console.error("Account creation error:", err);
       router.push("/dashboard");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle New User Registration (Sends Confirmation Code to new email)
-  const handleNewUserSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !fullName.trim()) return;
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const emailClean = email.trim().toLowerCase();
-
-      const { error } = await supabase.auth.signInWithOtp({
-        email: emailClean,
-        options: {
-          data: { full_name: fullName.trim() },
-          shouldCreateUser: true,
-        },
-      });
-
-      if (error) throw error;
-
-      setCodeSent(true);
-      setMessage({
-        type: "success",
-        text: `A 6-digit confirmation code has been sent to ${emailClean}. Please enter it below to complete registration.`,
-      });
-    } catch (err: unknown) {
-      setMessage({
-        type: "error",
-        text:
-          err instanceof Error
-            ? err.message
-            : "Could not send confirmation code. Please check your email.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyNewUserCode = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!otpToken.trim() || !email.trim()) return;
-
-    setLoading(true);
-    setMessage(null);
-
-    try {
-      const emailClean = email.trim().toLowerCase();
-      const { data, error } = await supabase.auth.verifyOtp({
-        email: emailClean,
-        token: otpToken.trim(),
-        type: "email",
-      });
-
-      if (error) throw error;
-
-      if (data.session) {
-        const user = data.session.user;
-        if (typeof window !== "undefined") {
-          localStorage.setItem("trajectory_user_email", emailClean);
-        }
-
-        try {
-          await supabase.from("profiles").upsert({
-            id: user.id,
-            email: user.email,
-            full_name: fullName.trim() || user.user_metadata?.full_name || emailClean.split("@")[0],
-            updated_at: new Date().toISOString(),
-          });
-
-          await fetch(`${API_BASE_URL}/user/profile/sync`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              user_id: user.id,
-              email: user.email,
-              full_name: fullName.trim() || user.user_metadata?.full_name || emailClean.split("@")[0],
-            }),
-          });
-        } catch (syncErr) {
-          console.error("Profile sync error:", syncErr);
-        }
-
-        router.push("/dashboard");
-      }
-    } catch (err: unknown) {
-      setMessage({
-        type: "error",
-        text:
-          err instanceof Error
-            ? err.message
-            : "Invalid confirmation code. Please check and try again.",
-      });
     } finally {
       setLoading(false);
     }
@@ -229,10 +132,10 @@ export default function LoginPage() {
         <Card className="border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl rounded-2xl overflow-hidden">
           <CardHeader className="text-center pb-2">
             <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-              Welcome to Trajectory
+              Create Your Account
             </CardTitle>
             <CardDescription className="text-sm text-slate-500 dark:text-slate-400">
-              Sign in with your email address to enter your dashboard instantly.
+              Enter your name and email to save your profile and enter your dashboard instantly.
             </CardDescription>
           </CardHeader>
 
@@ -269,7 +172,7 @@ export default function LoginPage() {
             <div className="relative flex items-center justify-center">
               <div className="border-t border-slate-200 dark:border-slate-800 w-full" />
               <span className="bg-white dark:bg-slate-900 px-3 text-xs text-slate-400 uppercase font-medium absolute">
-                Or Sign In with Email
+                Or Sign Up with Email
               </span>
             </div>
 
@@ -289,160 +192,60 @@ export default function LoginPage() {
               </div>
             )}
 
-            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 rounded-xl bg-slate-100 dark:bg-slate-800 p-1">
-                <TabsTrigger
-                  value="sign-in"
-                  onClick={() => setCodeSent(false)}
-                  className="rounded-lg text-xs font-semibold"
-                >
-                  Sign In
-                </TabsTrigger>
-                <TabsTrigger
-                  value="sign-up"
-                  onClick={() => setCodeSent(false)}
-                  className="rounded-lg text-xs font-semibold"
-                >
-                  Create Account
-                </TabsTrigger>
-              </TabsList>
+            {/* DIRECT ACCOUNT CREATION FORM (NO EMAIL CODES) */}
+            <form onSubmit={handleAccountAccess} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Full Name
+                </label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                  <Input
+                    type="text"
+                    placeholder="John Doe"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    required
+                    className="pl-10 rounded-xl"
+                  />
+                </div>
+              </div>
 
-              {/* SIGN IN TAB (Instant Access by Email - No Confirmation Code Required) */}
-              <TabsContent value="sign-in" className="mt-4 space-y-4">
-                <form onSubmit={handleExistingUserSignIn} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Your Email Address
-                    </label>
-                    <div className="relative">
-                      <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                      <Input
-                        type="email"
-                        placeholder="you@example.com"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required
-                        className="pl-10 rounded-xl"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                      Enter your email address to enter the dashboard automatically. No code required.
-                    </p>
-                  </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  Email Address
+                </label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
+                  <Input
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="pl-10 rounded-xl"
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
+                  Your email and profile will be stored in our database. No confirmation code required.
+                </p>
+              </div>
 
-                  <Button
-                    type="submit"
-                    disabled={loading || !email.trim()}
-                    className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
-                  >
-                    {loading ? (
-                      <span>Entering Dashboard...</span>
-                    ) : (
-                      <>
-                        <span>Enter Dashboard Instantly</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </>
-                    )}
-                  </Button>
-                </form>
-              </TabsContent>
-
-              {/* CREATE ACCOUNT TAB (New Users - Confirmation Code Sent) */}
-              <TabsContent value="sign-up" className="mt-4 space-y-4">
-                {!codeSent ? (
-                  <form onSubmit={handleNewUserSignUp} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Full Name
-                      </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                        <Input
-                          type="text"
-                          placeholder="John Doe"
-                          value={fullName}
-                          onChange={(e) => setFullName(e.target.value)}
-                          required
-                          className="pl-10 rounded-xl"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                        <Input
-                          type="email"
-                          placeholder="you@example.com"
-                          value={email}
-                          onChange={(e) => setEmail(e.target.value)}
-                          required
-                          className="pl-10 rounded-xl"
-                        />
-                      </div>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={loading || !email.trim() || !fullName.trim()}
-                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
-                    >
-                      {loading ? (
-                        <span>Sending Confirmation Code...</span>
-                      ) : (
-                        <>
-                          <span>Create Account & Send Code</span>
-                          <ArrowRight className="w-4 h-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
+              <Button
+                type="submit"
+                disabled={loading || !email.trim() || !fullName.trim()}
+                className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center space-x-2"
+              >
+                {loading ? (
+                  <span>Creating Account & Entering Dashboard...</span>
                 ) : (
-                  <form onSubmit={handleVerifyNewUserCode} className="space-y-4">
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        6-Digit Confirmation Code
-                      </label>
-                      <div className="relative">
-                        <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
-                        <Input
-                          type="text"
-                          placeholder="123456"
-                          value={otpToken}
-                          onChange={(e) => setOtpToken(e.target.value)}
-                          required
-                          maxLength={6}
-                          className="pl-10 tracking-widest text-center text-lg font-mono rounded-xl"
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-1">
-                        Enter the code sent to <strong className="text-slate-800 dark:text-slate-200">{email}</strong>
-                      </p>
-                    </div>
-
-                    <Button
-                      type="submit"
-                      disabled={loading || !otpToken.trim()}
-                      className="w-full py-5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                    >
-                      {loading ? <span>Completing Registration...</span> : <span>Verify & Complete Registration</span>}
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setCodeSent(false)}
-                      className="w-full text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                    >
-                      Change email or name
-                    </Button>
-                  </form>
+                  <>
+                    <span>Create Account & Enter Dashboard</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 )}
-              </TabsContent>
-            </Tabs>
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>
