@@ -120,6 +120,16 @@ async def _safe_search(adapter_fn, query: str, country: str | None, city: str | 
         return []
 
 
+@app.get("/")
+def root_welcome():
+    return {
+        "message": "Trajectory API Backend is running live",
+        "status": "ok",
+        "health_check": "/health",
+        "documentation": "/docs",
+    }
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
